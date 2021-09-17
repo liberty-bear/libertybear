@@ -43,6 +43,7 @@ module.exports = {
       js: 'never',
       vue: 'never',
     }],
+    "no-warning-comments": 0,
     "linebreak-style": 0,
     // copied from airbnb-base, replaced 4 with 8
     'object-curly-newline': ['error', {

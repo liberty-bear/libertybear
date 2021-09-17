@@ -11,7 +11,7 @@
       </nav>
       <div class="edit-name text-center ellipsis flex-1" v-text="scriptName"/>
       <div class="edit-hint text-right ellipsis">
-        <a href="https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-favorite-editor/"
+        <a href="https://liberty-bear.github.io/posts/how-to-edit-scripts-with-your-favorite-editor/"
            target="_blank"
            rel="noopener noreferrer"
            v-text="i18n('editHowToHint')"/>

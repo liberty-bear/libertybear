@@ -6,21 +6,20 @@
     </h1>
     <p v-text="i18n('extDescription')"></p>
     <div>
-      <a href="https://violentmonkey.github.io/donate/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelDonate')"></a><span class="text-red"> &hearts;</span>
+      <a href="https://liberty-bear.github.io/donate/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelDonate')"></a><span class="text-red"> &hearts;</span>
     </div>
     <div>
       <label v-text="i18n('labelRelated')"></label>
       <ul>
-        <li><a href="https://violentmonkey.github.io" target="_blank" rel="noopener noreferrer" v-text="i18n('labelHomepage')"></a></li>
-        <li><a href="https://github.com/violentmonkey/violentmonkey/issues" target="_blank" rel="noopener noreferrer" v-text="i18n('labelFeedback')"></a></li>
-        <li><a href="https://github.com/violentmonkey/violentmonkey/graphs/contributors" target="_blank" rel="noopener noreferrer" v-text="i18n('labelContributors')"></a></li>
-        <li><a href="https://violentmonkey.github.io/privacy/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelPrivacyPolicy')"></a></li>
+        <li><a href="https://liberty-bear.github.io" target="_blank" rel="noopener noreferrer" v-text="i18n('labelHomepage')"></a></li>
+        <li><a href="https://github.com/liberty-bear/libertybear/issues" target="_blank" rel="noopener noreferrer" v-text="i18n('labelFeedback')"></a></li>
+        <li><a href="https://liberty-bear.github.io/privacy/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelPrivacyPolicy')"></a></li>
       </ul>
     </div>
     <div>
       <label v-text="i18n('labelCurrentLang')"></label>
       <span class="current" v-text="language"></span> |
-      <a href="https://violentmonkey.github.io/localization/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelHelpTranslate')"></a>
+      <a href="https://liberty-bear.github.io/localization/" target="_blank" rel="noopener noreferrer" v-text="i18n('labelHelpTranslate')"></a>
     </div>
   </div>
 </template>

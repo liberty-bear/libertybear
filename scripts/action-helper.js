@@ -26,7 +26,7 @@ envs.ASSET_SELF_HOSTED_ZIP = `${envs.RELEASE_PREFIX}-webext-ffself-v${envs.VERSI
 envs.RELEASE_NOTE = beta ? `\
 **This is a beta release of LibertyBear, use it at your own risk.**
 ` : `\
-See <https://violentmonkey.github.io/> for more details.
+See <https://liberty-bear.github.io/> for more details.
 `;
 
 Object.entries(envs).forEach(([key, value]) => {

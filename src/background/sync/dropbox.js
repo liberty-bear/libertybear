@@ -6,7 +6,7 @@ import {
 
 const config = {
   client_id: 'f0q12zup2uys5w8',
-  redirect_uri: 'https://libertybear.github.io/auth_dropbox.html',
+  redirect_uri: 'https://liberty-bear.github.io/auth_dropbox.html',
 };
 
 const escRE = /[\u007f-\uffff]/g; // eslint-disable-line no-control-regex

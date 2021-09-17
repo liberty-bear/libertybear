@@ -201,7 +201,7 @@ function getResponseType({ responseType = '' }) {
     break;
   default:
     log('warn', null, `Unknown responseType "${responseType}",`
-      + ' see https://libertybear.github.io/api/gm/#gm_xmlhttprequest for more detail.');
+      + ' see https://liberty-bear.github.io/api/gm/#gm_xmlhttprequest for more detail.');
   }
   return '';
 }

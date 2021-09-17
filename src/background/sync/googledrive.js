@@ -12,7 +12,7 @@ import {
 const config = {
   client_id: process.env.SYNC_GOOGLE_CLIENT_ID,
   client_secret: process.env.SYNC_GOOGLE_CLIENT_SECRET,
-  redirect_uri: 'https://violentmonkey.github.io/auth_googledrive.html',
+  redirect_uri: 'https://liberty-bear.github.io/auth_googledrive.html',
   scope: 'https://www.googleapis.com/auth/drive.appdata',
 };
 const UNAUTHORIZED = { status: 'UNAUTHORIZED' };

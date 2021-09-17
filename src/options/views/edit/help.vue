@@ -2,8 +2,8 @@
   <div class="edit-help mb-2c">
     <div>
       <h3 v-html="i18n('editHelpDocumention')"/>
-      <a href="https://violentmonkey.github.io/api/"
-         rel="noopener noreferrer" target="_blank">violentmonkey.github.io/api/</a>
+      <a href="https://liberty-bear.github.io/api/"
+         rel="noopener noreferrer" target="_blank">liberty-bear.github.io/api/</a>
     </div>
     <div class="keyboard">
       <h3 v-text="i18n('editHelpKeyboard')"/>

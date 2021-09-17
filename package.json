@@ -53,12 +53,12 @@
   "author": "Gerald <i@gerald.top>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/violentmonkey/violentmonkey.git"
+    "url": "https://github.com/liberty-bear/libertybear.git"
   },
   "bugs": {
-    "url": "https://github.com/violentmonkey/violentmonkey/issues"
+    "url": "https://github.com/liberty-bear/libertybear/issues"
   },
-  "homepage": "https://github.com/violentmonkey/violentmonkey",
+  "homepage": "https://github.com/liberty-bear/libertybear",
   "license": "MIT",
   "dependencies": {
     "@violentmonkey/shortcut": "^1.2.4",
@@ -75,8 +75,6 @@
   },
   "husky": {
     "hooks": {
-      "pre-commit": "yarn transform -t",
-      "pre-push": "yarn lint"
     }
   },
   "beta": 5

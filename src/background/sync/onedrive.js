@@ -10,7 +10,7 @@ import {
 const config = {
   client_id: process.env.SYNC_ONEDRIVE_CLIENT_ID,
   client_secret: process.env.SYNC_ONEDRIVE_CLIENT_SECRET,
-  redirect_uri: 'https://violentmonkey.github.io/auth_onedrive.html',
+  redirect_uri: 'https://liberty-bear.github.io/auth_onedrive.html',
 };
 
 const OneDrive = BaseService.extend({

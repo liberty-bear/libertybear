@@ -161,7 +161,7 @@
        v-if="store.currentTab && store.currentTab.incognito"
        v-text="i18n('msgIncognitoChanges')"/>
     <footer>
-      <a href="https://violentmonkey.github.io/" :tabIndex="tabIndex" @click.prevent="onVisitWebsite" v-text="i18n('visitWebsite')" />
+      <a href="https://liberty-bear.github.io/" :tabIndex="tabIndex" @click.prevent="onVisitWebsite" v-text="i18n('visitWebsite')" />
     </footer>
     <div class="message" v-show="message">
       <div v-text="message"></div>
@@ -345,7 +345,7 @@ export default {
     },
     onVisitWebsite() {
       sendCmd('TabOpen', {
-        url: 'https://violentmonkey.github.io/',
+        url: 'https://liberty-bear.github.io/',
       });
       window.close();
     },

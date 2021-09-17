@@ -89,7 +89,7 @@
               <option v-for="(_, mode) in items[opt].enum" :key="`${opt}:${mode}`"
                       :value="mode" v-text="mode" />
             </select>
-            <a class="ml-1" href="https://violentmonkey.github.io/posts/inject-into-context/" target="_blank" rel="noopener noreferrer" v-text="i18n('learnInjectionMode')"></a>
+            <a class="ml-1" href="https://liberty-bear.github.io/posts/inject-into-context/" target="_blank" rel="noopener noreferrer" v-text="i18n('learnInjectionMode')"></a>
           </label>
         </div>
         <div>
