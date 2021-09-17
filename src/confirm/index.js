@@ -1,7 +1,9 @@
 import Vue from 'vue';
+import '#/common/browser';
 import { i18n } from '#/common';
 import '#/common/handlers';
 import options from '#/common/options';
+import '#/common/ui/favicon';
 import '#/common/ui/style';
 import App from './views/app';
 import './style.css';

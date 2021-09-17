@@ -19,14 +19,24 @@ $topIconSize: 20px;
 $findIconSize: 16px;
 $findIconML: calc($leftPaneWidth - $findIconSize - $iconMR);
 
+$footerHeight: 40px;
+
 body {
   width: 320px;
   max-width: 100%;
   /* Latest Chrome renders an extra blank for a nonexistent scrollbar */
   overflow: hidden;
-  background: #f8f8f8;
+  background: var(--fill-0-5);
+  font-weight: normal;
   @media (min-width: 360px) {
     width: 100%;
+  }
+}
+
+a {
+  &,
+  &:focus {
+    color: inherit;
   }
 }
 
@@ -34,20 +44,17 @@ body {
   /* hardcoded popup height in Chrome */
   max-height: 600px;
   overflow: hidden;
+  .incognito {
+    padding: $padding $padding 0 $leftPaneWidth;
+  }
 }
 
 footer {
-  height: 40px;
-  line-height: 40px;
+  height: $footerHeight;
+  line-height: $footerHeight;
   text-align: center;
   font-size: $fontSize;
-  color: #999;
-  > span {
-    cursor: pointer;
-    &:hover {
-      color: #666;
-    }
-  }
+  color: var(--fill-6);
 }
 
 .logo {
@@ -63,21 +70,22 @@ footer {
 
 .menu-area {
   cursor: pointer;
-  &:hover {
+  &:hover,
+  &:focus {
     background: cornflowerblue;
-    color: white;
+    color: var(--bg);
   }
   .disabled > & {
-    color: gray;
-    &:hover {
-      color: silver;
+    color: var(--fill-8);
+    &:focus {
+      color: var(--fill-4);
     }
   }
 }
 
 .ext-name {
   &.disabled {
-    color: gray;
+    color: var(--fill-8);
   }
 }
 
@@ -98,7 +106,7 @@ footer {
 .menu-buttons {
   align-items: center;
   padding: $padding $padding $padding 0;
-  background: white;
+  background: var(--bg);
   > .menu-area {
     padding: $padding;
   }
@@ -110,8 +118,10 @@ footer {
 }
 
 .menu {
-  background: white;
-  border-top: 1px solid silver;
+  background: var(--bg);
+  &, &:not(.expand) + footer {
+    border-top: 1px solid var(--fill-4);
+  }
   &-item {
     position: relative;
     display: flex;
@@ -126,11 +136,19 @@ footer {
     }
     .icon {
       flex: 0 0 $iconSize;
+      &.icon-collapse {
+        flex: 0 0 $findIconSize;
+        width: $findIconSize;
+        height: $findIconSize;
+      }
     }
     > .icon:first-child {
       margin-right: $iconMR;
     }
     > .flex-auto {
+      display: flex;
+      align-self: stretch;
+      align-items: center;
       &:last-child {
         padding-right: $itemPaddingX;
       }
@@ -138,11 +156,22 @@ footer {
     > .flex-1 {
       padding-right: 2rem;
     }
+    .failed & {
+      text-decoration: line-through red;
+    }
+    .removed & {
+      text-decoration: line-through;
+    }
   }
   &-find {
     padding-left: 0;
-    /* using the same selector as above to override it */
-    > .icon:first-child {
+    cursor: default;
+    a {
+      display: flex;
+      align-items: center;
+      align-self: stretch;
+    }
+    .icon {
       flex-basis: $findIconSize;
       width: $findIconSize;
       height: $findIconSize;
@@ -150,15 +179,20 @@ footer {
     }
   }
   &-group {
-    padding-left: $leftPaneWidth;
+    padding-left: $findIconML;
+    color: #4a7792;
+    @media (prefers-color-scheme: dark) {
+      color: #eee;
+    }
     & [data-totals]::after {
       content: ": " attr(data-totals);
     }
   }
   &.expand {
-    background: #fbfbfb;
+    background: var(--fill-1);
     > .submenu {
       display: block;
+      border-color: var(--fill-4);
     }
     .icon-collapse {
       transform: rotateZ(90deg);
@@ -171,13 +205,10 @@ footer {
   min-height: 4rem;
   max-height: 30rem;
   overflow-y: auto;
-  background: white;
-  border-top: 1px dashed #ddd;
+  background: var(--bg);
+  border-top: 1px dashed var(--fill-3);
   > * {
     position: relative;
-    &:not(:hover) > .submenu-buttons {
-      visibility: hidden;
-    }
     .menu-item {
       padding-left: 0;
     }
@@ -185,16 +216,19 @@ footer {
   &-buttons {
     display: flex;
     position: absolute;
-    top: .3rem;
-    right: $itemPaddingX;
+    top: 0;
+    right: 0;
   }
   &-button {
-    padding: .2rem;
-    background: white;
+    padding: .5rem;
+    background: var(--bg);
     cursor: pointer;
-    &:hover {
-      color: white;
+    &:focus {
+      color: var(--bg);
       background: cornflowerblue;
+    }
+    &:not(:focus) {
+      opacity: .5;
     }
     .icon {
       display: block;
@@ -202,7 +236,7 @@ footer {
   }
   &-commands {
     font-size: .8rem;
-    color: #333;
+    color: var(--fill-12);
     > .menu-item {
       padding-left: $leftPaneWidth;
       > .icon {
@@ -220,15 +254,89 @@ footer {
   padding: 4px $padding;
   word-wrap: break-word;
   font-size: $fontSize;
-  line-height: 1;
-  background: #fdfdfd;
-  border: 1px solid #ddd;
+  line-height: 1.2; /* lower values cut descender in "g" */
+  background: var(--fill-0-5);
+  border: 1px solid var(--fill-2);
   > div {
-    max-height: 2em;
+    max-height: $footerHeight;
     overflow: hidden;
   }
 }
 
 .failure-reason {
   padding: .75rem $itemPaddingX .75rem $leftPaneWidth;
+  code {
+    max-width: 100%;
+  }
+}
+
+.reload-hint {
+  .icon {
+    position: absolute;
+    left: $findIconML;
+    width: $findIconSize;
+    height: $findIconSize;
+  }
+}
+
+.extras-menu {
+  position: fixed;
+  right: 1rem;
+  box-shadow: 1px 1px 10px #0008;
+  z-index: 100;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--fill-6);
+  & > * {
+    cursor: pointer;
+    display: block;
+    padding: .25rem 1rem;
+    text-decoration: none;
+    &:first-child {
+      padding-top: .75rem;
+    }
+    &:last-child {
+      padding-bottom: .75rem;
+    }
+    &:focus {
+      color: var(--bg);
+      background: cornflowerblue;
+    }
+  }
+}
+
+.excludes-menu {
+  padding: .25rem .5rem .25rem $leftPaneWidth;
+  button {
+    margin: .5rem .5rem 0 0;
+  }
+  details {
+    summary {
+      list-style-type: none;
+    }
+    &[open] {
+      padding-top: .25rem;
+      summary {
+        position: absolute;
+        left: calc($leftPaneWidth - $scriptIconSize - $iconMR);
+      }
+    }
+    &:not([open]) {
+      display: inline;
+    }
+  }
+  .icon {
+    cursor: pointer;
+    width: $scriptIconSize;
+    height: $scriptIconSize;
+  }
+}
+
+.extras-shown .script-name {
+  text-decoration: underline;
+}
+
+.block-scroll {
+  pointer-events: none;
+  user-select: none;
 }

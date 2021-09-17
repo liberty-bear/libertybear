@@ -1,17 +1,19 @@
-import { sendMessage } from '#/common';
-import { INJECT_PAGE } from '#/common/consts';
-import { assign } from '../utils/helpers';
+import { sendCmd } from '#/common';
+import { INJECT_PAGE, browser } from '#/common/consts';
+import { assign } from '#/common/object';
+import { Error } from '../utils/helpers';
 
 /** @type {Object.<string, MessageFromGuestHandler>} */
 const handlers = {};
 const bgHandlers = {};
-
-export default {
-  ids: [],
-  enabledIds: [],
+const bridge = {
+  ids: [], // all ids including the disabled ones for SetPopup
+  runningIds: [],
   // userscripts running in the content script context are messaged via invokeGuest
+  /** @type Number[] */
   invokableIds: [],
-  // {CommandName: sendMessage} will relay the request via sendMessage as is
+  failedIds: [],
+  // {CommandName: sendCmd} will relay the request via sendCmd as is
   addHandlers(obj) {
     assign(handlers, obj);
   },
@@ -19,16 +21,25 @@ export default {
     assign(bgHandlers, obj);
   },
   // realm is provided when called directly via invokeHost
-  onHandle(req, realm) {
-    const handle = handlers[req.cmd];
-    if (handle === sendMessage) sendMessage(req);
-    else if (handle) handle(req.data, realm || INJECT_PAGE);
+  async onHandle({ cmd, data }, realm) {
+    const handle = handlers[cmd];
+    if (!handle) throw new Error(`Invalid command: ${cmd}`);
+    const callbackId = data?.callbackId;
+    const payload = callbackId ? data.payload : data;
+    let res = handle === sendCmd ? sendCmd(cmd, payload) : handle(payload, realm || INJECT_PAGE);
+    if (typeof res?.then === 'function') {
+      res = await res;
+    }
+    if (callbackId && res !== undefined) {
+      bridge.post('Callback', { callbackId, payload: res }, realm);
+    }
   },
 };
 
-browser.runtime.onMessage.addListener((req, src) => {
-  const handle = bgHandlers[req.cmd];
-  if (handle) handle(req.data, src);
+export default bridge;
+
+browser.runtime.onMessage.addListener(({ cmd, data }, src) => {
+  bgHandlers[cmd]?.(data, src);
 });
 
 /**

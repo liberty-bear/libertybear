@@ -1,7 +1,7 @@
 <template>
-  <section>
+  <section class="mt-1c">
     <h3 v-text="i18n('labelSync')"></h3>
-    <div v-if="state">
+    <div v-if="state" class="flex flex-wrap center-items">
       <span v-text="i18n('labelSyncService')"></span>
       <select class="mx-1" :value="syncConfig.current" @change="onSyncChange">
         <option
@@ -13,38 +13,40 @@
       </select>
       <button v-text="state.label" v-if="service.name && state.authType === 'oauth'"
       :disabled="!state.canAuthorize" @click="onAuthorize"></button>
-      <button :disabled="!state.canSync" v-if="service.name" @click="onSync">
-        <icon name="refresh"></icon>
-      </button>
+      <tooltip v-if="service.name" :content="i18n('labelSync')" class="stretch-self flex mr-1">
+        <button :disabled="!state.canSync" @click="onSync" class="flex center-items">
+          <icon name="refresh"/>
+        </button>
+      </tooltip>
+      <p v-if="state" v-text="state.message"/>
     </div>
-    <p v-if="state" class="mt-1" v-text="state.message"></p>
-    <fieldset class="mt-1" v-if="state && state.authType === 'password'">
-      <div class="sync-server-url">
-        <label v-text="i18n('labelSyncServerUrl')"></label>
+    <fieldset class="mt-1c" v-if="state && state.authType === 'password'">
+      <label class="sync-server-url">
+        <span v-text="i18n('labelSyncServerUrl')"></span>
         <input
-          type="text"
+          type="url"
           v-model="state.userConfig.serverUrl"
-          :disabled="!state.canAuthorize || state.userConfig.anonymous"
+          :disabled="!state.canAuthorize"
         />
-      </div>
-      <div class="mt-1">
-        <div class="inline-block mr-2">
-          <label v-text="i18n('labelSyncUsername')"></label>
+      </label>
+      <div class="mr-2c">
+        <label>
+          <span v-text="i18n('labelSyncUsername')"></span>
           <input
             type="text"
             v-model="state.userConfig.username"
             :disabled="!state.canAuthorize || state.userConfig.anonymous"
           />
-        </div>
-        <div class="inline-block mr-2">
-          <label v-text="i18n('labelSyncPassword')"></label>
+        </label>
+        <label class="inline-block">
+          <span v-text="i18n('labelSyncPassword')"></span>
           <input
             type="password"
             v-model="state.userConfig.password"
             :disabled="!state.canAuthorize || state.userConfig.anonymous"
           />
-        </div>
-        <label class="mr-2">
+        </label>
+        <label>
           <input
             type="checkbox"
             v-model="state.userConfig.anonymous"
@@ -53,7 +55,7 @@
           <span v-text="i18n('labelSyncAnonymous')"></span>
         </label>
       </div>
-      <div class="mt-1">
+      <div>
         <button
           v-text="i18n('buttonSave')"
           @click.prevent="onSaveUserConfig"
@@ -61,17 +63,15 @@
         />
       </div>
     </fieldset>
-    <div class="mt-1">
-      <label>
-        <setting-check name="syncScriptStatus" />
-        <span v-text="i18n('labelSyncScriptStatus')"></span>
-      </label>
+    <div v-if="service && service.name">
+      <setting-check name="syncScriptStatus" :label="i18n('labelSyncScriptStatus')" />
     </div>
   </section>
 </template>
 
 <script>
-import { sendCmd } from '#/common';
+import Tooltip from 'vueleton/lib/tooltip/bundle';
+import { noop, sendCmd } from '#/common';
 import options from '#/common/options';
 import SettingCheck from '#/common/ui/setting-check';
 import hookSetting from '#/common/hook-setting';
@@ -90,6 +90,7 @@ export default {
   components: {
     SettingCheck,
     Icon,
+    Tooltip,
   },
   data() {
     return {
@@ -127,8 +128,8 @@ export default {
     state() {
       const { service } = this;
       if (service) {
-        const canAuthorize = ['unauthorized', 'error', 'authorized'].includes(service.authState)
-          && ['idle', 'error'].includes(service.syncState);
+        const canAuthorize = ['idle', 'error'].includes(service.syncState)
+          && ['no-auth', 'unauthorized', 'error', 'authorized'].includes(service.authState);
         const canSync = canAuthorize && service.authState === 'authorized';
         return {
           message: this.getMessage(),
@@ -144,7 +145,7 @@ export default {
   },
   methods: {
     onSaveUserConfig() {
-      sendCmd('SyncSetConfig', this.state.userConfig);
+      sendCmd('SyncSetConfig', this.state.userConfig).catch(noop);
     },
     onSyncChange(e) {
       const { value } = e.target;
@@ -155,7 +156,7 @@ export default {
       if (['authorized'].includes(service.authState)) {
         // revoke
         sendCmd('SyncRevoke');
-      } else if (['unauthorized', 'error'].includes(service.authState)) {
+      } else if (['no-auth', 'unauthorized', 'error'].includes(service.authState)) {
         // authorize
         sendCmd('SyncAuthorize');
       }
@@ -166,7 +167,9 @@ export default {
     getMessage() {
       const { service } = this;
       if (service.authState === 'initializing') return this.i18n('msgSyncInit');
+      if (service.authState === 'no-auth') return this.i18n('msgSyncNoAuthYet');
       if (service.authState === 'error') return this.i18n('msgSyncInitError');
+      if (service.authState === 'unauthorized') return this.i18n('msgSyncInitError');
       if (service.syncState === 'error') return this.i18n('msgSyncError');
       if (service.syncState === 'ready') return this.i18n('msgSyncReady');
       if (service.syncState === 'syncing') {

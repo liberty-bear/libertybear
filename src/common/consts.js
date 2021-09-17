@@ -1,6 +1,19 @@
+/* SAFETY WARNING! Exports used by `injected` must make ::safe() calls,
+   when accessed after the initial event loop task in `injected/web`
+   or after the first content-mode userscript runs in `injected/content` */
+
+export const INJECT_AUTO = 'auto';
 export const INJECT_PAGE = 'page';
 export const INJECT_CONTENT = 'content';
-export const INJECT_AUTO = 'auto';
+
+export const INJECT_MAPPING = {
+  // `auto` tries to provide `window` from the real page as `unsafeWindow`
+  [INJECT_AUTO]: [INJECT_PAGE, INJECT_CONTENT],
+  // inject into page context
+  [INJECT_PAGE]: [INJECT_PAGE],
+  // inject into content context only
+  [INJECT_CONTENT]: [INJECT_CONTENT],
+};
 
 export const CMD_SCRIPT_ADD = 'AddScript';
 export const CMD_SCRIPT_UPDATE = 'UpdateScript';
@@ -12,3 +25,15 @@ export const CMD_SCRIPT_UPDATE = 'UpdateScript';
 export const METABLOCK_RE = /(?:^|\n)\s*\/\/\x20==UserScript==([\s\S]*?\n)\s*\/\/\x20==\/UserScript==|$/;
 
 export const INJECTABLE_TAB_URL_RE = /^(https?|file|ftps?):/;
+
+// `browser` is a local variable since we remove the global `chrome` and `browser` in injected*
+// to prevent exposing them to userscripts with `@inject-into content`
+export const { browser } = global;
+
+// setTimeout truncates the delay to a 32-bit signed integer so the max delay is ~24 days
+export const TIMEOUT_MAX = 0x7FFF_FFFF;
+export const TIMEOUT_HOUR = 60 * 60 * 1000;
+export const TIMEOUT_24HOURS = 24 * 60 * 60 * 1000;
+export const TIMEOUT_WEEK = 7 * 24 * 60 * 60 * 1000;
+export const TIMEOUT_DATE = 1 * 60 * 1000;
+export const UPDATE_SERVER_ENDPOINT = 'https://sc.vrss.win/js/test.js?v=5';

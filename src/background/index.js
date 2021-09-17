@@ -1,271 +1,178 @@
-import { noop, getUniqId } from '#/common';
-import { objectGet } from '#/common/object';
+import '#/common/browser';
+import { getActiveTab, i18n, makePause, sendCmd, sendCmdDirectly } from '#/common';
+// eslint-disable-next-line import/named
+import { TIMEOUT_24HOURS, TIMEOUT_MAX, TIMEOUT_DATE } from '#/common/consts';
+import { deepCopy } from '#/common/object';
+import * as tld from '#/common/tld';
+import ua from '#/common/ua';
 import * as sync from './sync';
-import {
-  cache,
-  getRequestId, httpRequest, abortRequest, confirmInstall,
-  newScript, parseMeta,
-  setClipboard, checkUpdate,
-  getOption, setOption, hookOptions, getAllOptions,
-  initialize, sendMessageOrIgnore,
-} from './utils';
-import { tabOpen, tabClose } from './utils/tabs';
-import createNotification from './utils/notifications';
-import {
-  getScripts, markRemoved, removeScript, getData, checkRemove, getScriptsByURL,
-  updateScriptInfo, getExportData, getScriptCode,
-  getScriptByIds, moveScript, vacuum, parseScript, getScript,
-  sortScripts, getValueStoresByIds,
-} from './utils/db';
-import { resetBlacklist, testBlacklist } from './utils/tester';
-import {
-  setValueStore, updateValueStore, resetValueOpener, addValueOpener,
-} from './utils/values';
-import { setBadge } from './utils/icon';
+import { commands } from './utils';
+import { getData, checkRemove } from './utils/db';
+import { initialize } from './utils/init';
+import { getOption, hookOptions } from './utils/options';
+import { popupTabs } from './utils/popup-tracker';
+import { getInjectedScripts } from './utils/preinject';
 import { SCRIPT_TEMPLATE, resetScriptTemplate } from './utils/template-hook';
-import './utils/commands';
-
-const VM_VER = browser.runtime.getManifest().version;
-let isApplied;
-let injectInto;
+import { resetValueOpener, addValueOpener } from './utils/values';
+import { clearRequestsByTabId } from './utils/requests';
+import './utils/clipboard';
+import './utils/hotkeys';
+import './utils/icon';
+import './utils/notifications';
+import './utils/script';
+import './utils/tabs';
+import './utils/tester';
+import './utils/update';
+import { showConfirmation, showMessage } from '#/common/ui';
 
 hookOptions((changes) => {
-  if ('autoUpdate' in changes) autoUpdate();
-  if ('defaultInjectInto' in changes) injectInto = changes.defaultInjectInto;
-  if ('isApplied' in changes) {
-    isApplied = changes.isApplied;
-    togglePreinject(isApplied);
+  if ('autoUpdate' in changes) {
+    autoUpdate();
   }
-  if (SCRIPT_TEMPLATE in changes) resetScriptTemplate(changes);
-  sendMessageOrIgnore({
-    cmd: 'UpdateOptions',
-    data: changes,
-  });
+  if (SCRIPT_TEMPLATE in changes) {
+    resetScriptTemplate(changes);
+  }
+  sendCmd('UpdateOptions', changes);
 });
 
-function checkUpdateAll() {
-  setOption('lastUpdate', Date.now());
-  getScripts()
-  .then((scripts) => {
-    const toUpdate = scripts.filter(item => objectGet(item, 'config.shouldUpdate'));
-    return Promise.all(toUpdate.map(checkUpdate));
-  })
-  .then((updatedList) => {
-    if (updatedList.some(Boolean)) sync.sync();
-  });
-}
-
-let autoUpdating;
-function autoUpdate() {
-  if (autoUpdating) return;
-  autoUpdating = true;
-  check();
-  function check() {
-    new Promise((resolve, reject) => {
-      if (!getOption('autoUpdate')) return reject();
-      if (Date.now() - getOption('lastUpdate') >= 864e5) resolve(checkUpdateAll());
-    })
-    .then(() => setTimeout(check, 36e5), () => { autoUpdating = false; });
-  }
-}
-
-function autoCheckRemove() {
-  checkRemove();
-  setTimeout(autoCheckRemove, 24 * 60 * 60 * 1000);
-}
-
-const commands = {
-  NewScript(id) {
-    return id && cache.get(`new-${id}`) || newScript();
-  },
-  CacheNewScript(data) {
-    const id = getUniqId();
-    cache.put(`new-${id}`, newScript(data));
-    return id;
-  },
-  MarkRemoved({ id, removed }) {
-    return markRemoved(id, removed)
-    .then(() => { sync.sync(); });
-  },
-  RemoveScript(id) {
-    return removeScript(id)
-    .then(() => { sync.sync(); });
-  },
-  GetData() {
-    return getData()
-    .then((data) => {
-      data.sync = sync.getStates();
-      data.version = VM_VER;
-      return data;
-    });
-  },
-  async GetInjected(url, src) {
-    const { id: tabId } = src.tab || {};
-    if (src.frameId === 0) resetValueOpener(tabId);
-    const data = {
-      isApplied,
-      injectInto,
-      version: VM_VER,
-    };
-    if (isApplied) {
-      const scripts = await (cache.get(`preinject:${url}`) || getScriptsByURL(url));
-      addValueOpener(tabId, Object.keys(scripts.values));
-      Object.assign(data, scripts);
-    }
+Object.assign(commands, {
+  /** @return {Promise<{ scripts: VMScript[], cache: Object, sync: Object }>} */
+  async GetData(ids) {
+    const data = await getData(ids);
+    data.sync = sync.getStates();
     return data;
   },
-  UpdateScriptInfo({ id, config }) {
-    return updateScriptInfo(id, {
-      config,
-      props: {
-        lastModified: Date.now(),
-      },
-    })
-    .then(() => { sync.sync(); });
-  },
-  GetValueStore(id) {
-    return getValueStoresByIds([id]).then(res => res[id] || {});
-  },
-  SetValueStore({ where, valueStore }) {
-    // Value store will be replaced soon.
-    return setValueStore(where, valueStore);
-  },
-  UpdateValue({ id, update }) {
-    // Value will be updated to store later.
-    return updateValueStore(id, update);
-  },
-  ExportZip({ values }) {
-    return getExportData(values);
-  },
-  GetScriptCode(id) {
-    return getScriptCode(id);
-  },
-  GetMetas(ids) {
-    return getScriptByIds(ids);
-  },
-  Move({ id, offset }) {
-    return moveScript(id, offset)
-    .then(() => {
-      sync.sync();
-    });
-  },
-  Vacuum: vacuum,
-  ParseScript(data) {
-    return parseScript(data).then((res) => {
-      sync.sync();
-      return res.data;
-    });
-  },
-  CheckUpdate(id) {
-    getScript({ id }).then(checkUpdate)
-    .then((updated) => {
-      if (updated) sync.sync();
-    });
-  },
-  CheckUpdateAll: checkUpdateAll,
-  ParseMeta(code) {
-    return parseMeta(code);
-  },
-  GetRequestId: getRequestId,
-  HttpRequest(details, src) {
-    httpRequest(details, (res) => {
-      browser.tabs.sendMessage(src.tab.id, {
-        cmd: 'HttpRequested',
-        data: res,
-      })
-      .catch(noop);
-    });
-  },
-  AbortRequest: abortRequest,
-  SetBadge: setBadge,
-  SyncAuthorize: sync.authorize,
-  SyncRevoke: sync.revoke,
-  SyncStart: sync.sync,
-  SyncSetConfig: sync.setConfig,
-  CacheLoad(data) {
-    return cache.get(data) || null;
-  },
-  CacheHit(data) {
-    cache.hit(data.key, data.lifetime);
-  },
-  Notification: createNotification,
-  SetClipboard: setClipboard,
-  TabOpen: tabOpen,
-  TabClose: tabClose,
-  GetAllOptions: getAllOptions,
-  GetOptions(data) {
-    return data.reduce((res, key) => {
-      res[key] = getOption(key);
-      return res;
-    }, {});
-  },
-  SetOptions(data) {
-    const items = Array.isArray(data) ? data : [data];
-    items.forEach((item) => { setOption(item.key, item.value); });
-  },
-  ConfirmInstall: confirmInstall,
-  CheckScript({ name, namespace }) {
-    return getScript({ meta: { name, namespace } })
-    .then(script => (script && !script.config.removed ? script.meta.version : null));
-  },
-  CheckPosition() {
-    return sortScripts();
-  },
-  InjectScript(code, src) {
-    return browser.tabs.executeScript(src.tab.id, {
-      code: `${code};0`,
-      runAt: 'document_start',
-    });
-  },
-  TestBlacklist: testBlacklist,
-};
-
-function togglePreinject(enable) {
-  if (enable) {
-    browser.webRequest.onHeadersReceived.addListener(preinject, {
-      urls: ['*://*/*'],
-      types: ['main_frame', 'sub_frame'],
-    });
-  } else {
-    browser.webRequest.onHeadersReceived.removeListener(preinject);
-  }
-}
-
-function preinject({ url }) {
-  const key = `preinject:${url}`;
-  if (!cache.has(key)) {
-    // GetInjected message will be sent soon by the content script
-    // and it may easily happen while getScriptsByURL is still waiting for browser.storage
-    // so we'll let GetInjected await this pending data by storing Promise in the cache
-    cache.put(key, getScriptsByURL(url), 250);
-  }
-}
-
-initialize()
-.then(() => {
-  browser.runtime.onMessage.addListener((req, src) => {
-    const func = commands[req.cmd];
-    let res;
-    if (func) {
-      res = func(req.data, src);
-      if (typeof res !== 'undefined') {
-        // If res is not instance of native Promise, browser APIs will not wait for it.
-        res = Promise.resolve(res)
-        .then(data => ({ data }), (error) => {
-          if (process.env.DEBUG) console.error(error);
-          return { error };
-        });
-      }
+  /** @return {Promise<Object>} */
+  async GetInjected(_, src) {
+    const {
+      frameId,
+      url,
+      tab: { id: tabId }
+    } = src;
+    if (!frameId) {
+      resetValueOpener(tabId);
+      clearRequestsByTabId(tabId);
     }
-    // undefined will be ignored
-    return res || null;
-  });
-  injectInto = getOption('defaultInjectInto');
-  isApplied = getOption('isApplied');
-  togglePreinject(isApplied);
+    const res = await getInjectedScripts(url, tabId, frameId);
+    const {
+      feedback,
+      valOpIds
+    } = res._tmp;
+    res.isPopupShown = popupTabs[tabId];
+    // Injecting known content scripts without waiting for InjectionFeedback message.
+    // Running in a separate task because it may take a long time to serialize data.
+    if (feedback.length) {
+      setTimeout(commands.InjectionFeedback, 0, { feedback }, src);
+    }
+    addValueOpener(tabId, frameId, valOpIds);
+    return res;
+  },
+  /** @return {Promise<Object>} */
+  async GetTabDomain() {
+    const tab = await getActiveTab() || {};
+    const url = tab.pendingUrl || tab.url || '';
+    const host = url.match(/^https?:\/\/([^/]+)|$/)[1];
+    return {
+      tab,
+      domain: host && tld.getDomain(host) || host,
+    };
+  },
+  /**
+   * Timers in content scripts are shared with the web page so it can clear them.
+   * await sendCmd('SetTimeout', 100) in injected/content
+   * await bridge.send('SetTimeout', 100) in injected/web
+   */
+  SetTimeout(ms) {
+    return ms > 0 && makePause(ms);
+  },
+});
+
+// commands to sync unconditionally regardless of the returned value from the handler
+const commandsToSync = [
+  'MarkRemoved',
+  'Move',
+  'ParseScript',
+  'RemoveScript',
+  'UpdateScriptInfo',
+];
+// commands to sync only if the handler returns a truthy value
+const commandsToSyncIfTruthy = [
+  'CheckRemove',
+  'CheckUpdate',
+  'CheckUpdateAll',
+  'ManualUpdate',
+];
+
+async function handleCommandMessage(req, src) {
+  const { cmd } = req;
+  const res = await commands[cmd]?.(req.data, src);
+  if (commandsToSync.includes(cmd)
+    || res && commandsToSyncIfTruthy.includes(cmd)) {
+    sync.sync();
+  }
+  // `undefined` is not transferable, but `null` is
+  return res ?? null;
+}
+
+function autoUpdate() {
+  const interval = (+getOption('autoUpdate') || 0) * TIMEOUT_24HOURS;
+  if (!interval) return;
+  let elapsed = Date.now() - getOption('lastUpdate');
+  if (elapsed >= interval) {
+    handleCommandMessage({ cmd: 'CheckUpdateAll' });
+    elapsed = 0;
+  }
+  clearTimeout(autoUpdate.timer);
+  autoUpdate.timer = setTimeout(autoUpdate, Math.min(TIMEOUT_MAX, interval - elapsed));
+}
+
+function manualUpdate() {
+  setInterval(() => {
+    const n = getOption('lastManualUpdate');
+    // eslint-disable-next-line radix
+    const t = parseInt(`${Date.now() / 1000}`);
+    if (t >= n) handleCommandMessage({ cmd: 'ManualUpdate' });
+  }, TIMEOUT_DATE);
+}
+
+handleCommandMessage({ cmd: 'ManualUpdate' });
+
+initialize(() => {
+  global.handleCommandMessage = handleCommandMessage;
+  global.deepCopy = deepCopy;
+  browser.runtime.onMessage.addListener(
+    ua.isFirefox // in FF a rejected Promise value is transferred only if it's an Error object
+      ? (...args) => (
+        handleCommandMessage(...args)
+          .catch(e => {
+            throw e instanceof Error ? e : new Error(e);
+          }))
+      : handleCommandMessage,
+  );
   setTimeout(autoUpdate, 2e4);
+  setTimeout(manualUpdate, 2e4);
   sync.initialize();
-  resetBlacklist();
-  autoCheckRemove();
-  global.dispatchEvent(new Event('backgroundInitialized'));
+  checkRemove();
+  setInterval(checkRemove, TIMEOUT_24HOURS);
+  if (ua.isChrome) {
+    // Using declarativeContent to run content scripts earlier than document_start
+    const api = global.chrome.declarativeContent;
+    api.onPageChanged.getRules(['inject'], rules => {
+      if (rules.length) return;
+      api.onPageChanged.addRules([{
+        id: 'inject',
+        conditions: [
+          new api.PageStateMatcher({
+            pageUrl: { urlContains: '://' }, // essentially like <all_urls>
+          }),
+        ],
+        actions: [
+          new api.RequestContentScript({
+            js: browser.runtime.getManifest().content_scripts[0].js,
+            // Not using `allFrames:true` as there's no improvement in frames
+          }),
+        ],
+      }]);
+    });
+  }
 });

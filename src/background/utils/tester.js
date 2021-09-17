@@ -1,6 +1,14 @@
 import * as tld from '#/common/tld';
 import cache from './cache';
+import { postInitialize } from './init';
+import { commands } from './message';
 import { getOption, hookOptions } from './options';
+
+Object.assign(commands, {
+  TestBlacklist: testBlacklist,
+});
+
+postInitialize.push(resetBlacklist);
 
 tld.initTLD(true);
 
@@ -26,41 +34,32 @@ const MAX_BL_CACHE_LENGTH = 100e3;
 let blCache = {};
 let blCacheSize = 0;
 
+function testRules(url, rules, prefix, ruleBuilder) {
+  return rules.some(rule => {
+    const key = `${prefix}:${rule}`;
+    let matcher = cache.get(key);
+    if (matcher) cache.hit(key);
+    else cache.put(key, (matcher = ruleBuilder(rule)));
+    return matcher.test(url);
+  });
+}
+
 /**
  * Test glob rules like `@include` and `@exclude`.
  */
 export function testGlob(url, rules) {
-  return rules.some((rule) => {
-    const key = `re:${rule}`;
-    let re = cache.get(key);
-    if (re) {
-      cache.hit(key);
-    } else {
-      re = autoReg(rule);
-      cache.put(key, re);
-    }
-    return re.test(url);
-  });
+  return testRules(url, rules, 're', autoReg);
 }
 
 /**
  * Test match rules like `@match` and `@exclude_match`.
  */
 export function testMatch(url, rules) {
-  return rules.some((rule) => {
-    const key = `match:${rule}`;
-    let matcher = cache.get(key);
-    if (matcher) {
-      cache.hit(key);
-    } else {
-      matcher = matchTester(rule);
-      cache.put(key, matcher);
-    }
-    return matcher.test(url);
-  });
+  return testRules(url, rules, 'match', matchTester);
 }
 
 export function testScript(url, script) {
+  cache.batch(true);
   const { custom, meta } = script;
   const mat = mergeLists(custom.origMatch && meta.match, custom.match);
   const inc = mergeLists(custom.origInclude && meta.include, custom.include);
@@ -76,17 +75,8 @@ export function testScript(url, script) {
   ok = ok && !testMatch(url, excMat);
   // @exclude
   ok = ok && !testGlob(url, exc);
+  cache.batch(false);
   return ok;
-}
-
-function testRegExp(re, text) {
-  const key = `re-test:${re.source}:${text}`;
-  let res = cache.get(key);
-  if (!res) {
-    res = re.test(text) ? 1 : -1;
-    cache.put(key, res);
-  }
-  return res === 1;
 }
 
 function mergeLists(...args) {
@@ -98,16 +88,24 @@ function str2RE(str) {
   return re;
 }
 
+function bindRE(re) {
+  return re.test.bind(re);
+}
+
 function autoReg(str) {
+  // regexp mode: case-insensitive per GM documentation
   if (str.length > 1 && str[0] === '/' && str[str.length - 1] === '/') {
-    return new RegExp(str.slice(1, -1)); // Regular-expression
+    let re;
+    try { re = new RegExp(str.slice(1, -1), 'i'); } catch (e) { /* ignore */ }
+    return { test: re ? bindRE(re) : () => false };
   }
-  const reStr = str2RE(str);
+  // glob mode: case-insensitive to match GM4 & Tampermonkey bugged behavior
+  const reStr = str2RE(str.toLowerCase());
   if (tld.isReady() && str.includes('.tld/')) {
-    const reTldStr = reStr.replace('\\.tld/', '((?:\\.\\w+)+)/');
+    const reTldStr = reStr.replace('\\.tld/', '((?:\\.[-\\w]+)+)/');
     return {
       test: (tstr) => {
-        const matches = tstr.match(reTldStr);
+        const matches = tstr.toLowerCase().match(reTldStr);
         if (matches) {
           const suffix = matches[1].slice(1);
           if (tld.getPublicSuffix(suffix) === suffix) return true;
@@ -116,8 +114,8 @@ function autoReg(str) {
       },
     };
   }
-  const re = new RegExp(`^${reStr}$`); // String with wildcards
-  return { test: tstr => testRegExp(re, tstr) };
+  const re = new RegExp(`^${reStr}$`, 'i'); // String with wildcards
+  return { test: bindRE(re) };
 }
 
 function matchScheme(rule, data) {
@@ -133,13 +131,18 @@ function matchScheme(rule, data) {
 }
 
 const RE_STR_ANY = '(?:|.*?\\.)';
-const RE_STR_TLD = '((?:\\.\\w+)+)';
+const RE_STR_TLD = '((?:\\.[-\\w]+)+)';
 function hostMatcher(rule) {
+  // * matches all
+  if (rule === '*') {
+    return () => 1;
+  }
   // *.example.com
   // www.google.*
   // www.google.tld
+  const ruleLC = rule.toLowerCase(); // host matching is case-insensitive
   let prefix = '';
-  let base = rule;
+  let base = ruleLC;
   let suffix = '';
   if (rule.startsWith('*.')) {
     base = base.slice(2);
@@ -151,10 +154,10 @@ function hostMatcher(rule) {
   }
   const re = new RegExp(`^${prefix}${str2RE(base)}${suffix}$`);
   return (data) => {
-    // * matches all
-    if (rule === '*') return 1;
-    // exact match
-    if (rule === data) return 1;
+    // exact match, case-insensitive
+    data = data.toLowerCase();
+    if (ruleLC === data) return 1;
+    // full check
     const matches = data.match(re);
     if (matches) {
       const [, tldStr] = matches;
@@ -175,9 +178,9 @@ function pathMatcher(rule) {
     if (iQuery < 0) strRe = `^${strRe}(?:[?#]|$)`;
     else strRe = `^${strRe}(?:#|$)`;
   }
-  const reRule = new RegExp(strRe);
-  return data => testRegExp(reRule, data);
+  return bindRE(new RegExp(strRe));
 }
+
 function matchTester(rule) {
   let test;
   if (rule === '<all_urls>') {
@@ -202,77 +205,39 @@ function matchTester(rule) {
   return { test };
 }
 
-function checkPrefix(prefix, rule) {
-  if (rule.startsWith(prefix)) {
-    return rule.slice(prefix.length).trim();
-  }
-}
-
 export function testBlacklist(url) {
   let res = blCache[url];
   if (res === undefined) {
     const rule = blacklistRules.find(({ test }) => test(url));
-    if (rule) res = rule.reject;
+    res = rule?.reject && rule.text;
     updateBlacklistCache(url, res || false);
   }
   return res;
 }
 
 export function resetBlacklist(list) {
+  cache.batch(true);
   const rules = list == null ? getOption('blacklist') : list;
   if (process.env.DEBUG) {
     console.info('Reset blacklist:', rules);
   }
   // XXX compatible with {Array} list in v2.6.1-
   blacklistRules = (Array.isArray(rules) ? rules : (rules || '').split('\n'))
-  .map((line) => {
-    const item = line.trim();
-    if (!item || item.startsWith('#')) return null;
-
-    /**
-     * @include and @match rules are added for people who need a whitelist.
-     */
-    // @include
-    const includeRule = checkPrefix('@include ', item);
-    if (includeRule) {
-      return {
-        test: autoReg(includeRule).test,
-        reject: false,
-      };
-    }
-    // @match
-    const matchRule = checkPrefix('@match ', item);
-    if (matchRule) {
-      return {
-        test: matchTester(matchRule).test,
-        reject: false,
-      };
-    }
-
-    // @exclude
-    const excludeRule = checkPrefix('@exclude ', item);
-    if (excludeRule) {
-      return {
-        test: autoReg(excludeRule).test,
-        reject: true,
-      };
-    }
-    // domains
-    if (item.indexOf('/') < 0) {
-      return {
-        test: matchTester(`*://${item}/*`).test,
-        reject: true,
-      };
-    }
-    // @exclude-match
-    return {
-      test: matchTester(item).test,
-      reject: true,
-    };
+  .map((text) => {
+    text = text.trim();
+    if (!text || text.startsWith('#')) return null;
+    const mode = text.startsWith('@') && text.split(/\s/, 1)[0];
+    const rule = mode ? text.slice(mode.length + 1).trim() : text;
+    const reject = mode !== '@include' && mode !== '@match'; // @include and @match = whitelist
+    const { test } = mode === '@include' || mode === '@exclude' && autoReg(rule)
+      || !mode && !rule.includes('/') && matchTester(`*://${rule}/*`) // domain
+      || matchTester(rule); // @match and @exclude-match
+    return { reject, test, text };
   })
   .filter(Boolean);
   blCache = {};
   blCacheSize = 0;
+  cache.batch(false);
 }
 
 function updateBlacklistCache(key, value) {
@@ -281,7 +246,7 @@ function updateBlacklistCache(key, value) {
   if (blCacheSize > MAX_BL_CACHE_LENGTH) {
     Object.keys(blCache)
     .some((k) => {
-      blCacheSize -= blCache[k].length;
+      blCacheSize -= k.length;
       delete blCache[k];
       // reduce the cache to 75% so that this function doesn't run too often.
       return blCacheSize < MAX_BL_CACHE_LENGTH * 3 / 4;

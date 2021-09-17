@@ -1,126 +1,186 @@
+import { assign, defineProperty, describeProperty, objectPick } from '#/common/object';
 import {
-  includes, join, map, push, jsonDump, jsonLoad, objectToString, Promise, Blob, Uint8Array,
-  setAttribute, log, charCodeAt, fromCharCode, shift, slice, defineProperty,
+  Error, Promise, Uint8Array,
+  charCodeAt, filter, forEach, jsonLoad, log, replace, then,
+  NS_HTML, addEventListener, createElementNS, setAttribute,
 } from '../utils/helpers';
 import bridge from './bridge';
 
 const idMap = {};
-const queue = [];
 
-const NS_HTML = 'http://www.w3.org/1999/xhtml';
-
-const { DOMParser } = global;
+export const { atob } = global;
+const { Blob, DOMParser, FileReader, Response } = global;
 const { parseFromString } = DOMParser.prototype;
-const { toLowerCase } = String.prototype;
-const { createElementNS } = Document.prototype;
-const getHref = Object.getOwnPropertyDescriptor(HTMLAnchorElement.prototype, 'href').get;
+const { blob: resBlob } = Response.prototype;
+const { get: getHref } = describeProperty(HTMLAnchorElement.prototype, 'href');
+const { readAsDataURL } = FileReader.prototype;
 
 bridge.addHandlers({
-  GotRequestId(id) {
-    const req = queue::shift();
-    if (req) start(req, id);
-  },
-  HttpRequested(res) {
-    const req = idMap[res.id];
-    if (req) callback(req, res);
+  HttpRequested(msg) {
+    const req = idMap[msg.id];
+    if (req) callback(req, msg);
   },
 });
 
-export function onRequestCreate(details, scriptId) {
+export function onRequestCreate(opts, scriptId) {
+  if (!opts.url) throw new Error('Required parameter "url" is missing.');
   const req = {
     scriptId,
-    details,
+    opts,
     req: {
-      abort: reqAbort,
+      abort() {
+        bridge.post('AbortRequest', req.id);
+      },
     },
   };
-  details.url = getFullUrl(details.url);
-  queue::push(req);
-  bridge.post({ cmd: 'GetRequestId' });
+  opts.url = getFullUrl(opts.url);
+  bridge.send('GetRequestId', {
+    eventsToNotify: [
+      'abort',
+      'error',
+      'load',
+      'loadend',
+      'loadstart',
+      'progress',
+      'readystatechange',
+      'timeout',
+    ]::filter(e => typeof opts[`on${e}`] === 'function'),
+    wantsBlob: opts.responseType === 'blob',
+  })
+  ::then(id => start(req, id));
   return req.req;
 }
 
-function reqAbort() {
-  bridge.post({ cmd: 'AbortRequest', data: this.id });
-}
-
-function parseData(response, req, details) {
-  const { responseType } = details;
-  if (responseType === 'json') {
-    return jsonLoad(response);
-  }
-  if (responseType === 'document') {
-    const type = req.contentType.split(';', 1)[0] || 'text/html';
-    return new DOMParser()::parseFromString(response, type);
-  }
-  // arraybuffer, blob
-  if (req.resType && response) {
-    const len = response.length;
-    const arr = new Uint8Array(len);
-    for (let i = 0; i < len; i += 1) arr[i] = response::charCodeAt(i);
-    return responseType === 'blob'
-      ? new Blob([arr], { type: req.contentType })
+function parseData(req, msg) {
+  let res;
+  const { raw, opts: { responseType } } = req;
+  if (responseType === 'text') {
+    res = raw;
+  } else if (responseType === 'json') {
+    res = jsonLoad(raw);
+  } else if (responseType === 'document') {
+    const type = msg.contentType::replace(/^[^;]+/)?.[0] || 'text/html';
+    res = new DOMParser()::parseFromString(raw, type);
+  } else if (msg.chunked) {
+    // arraybuffer/blob in incognito tabs is transferred as ArrayBuffer encoded in string chunks
+    const arr = new Uint8Array(req.dataSize);
+    let dstIndex = 0;
+    raw::forEach((chunk) => {
+      const len = (chunk = atob(chunk)).length;
+      for (let j = 0; j < len; j += 1, dstIndex += 1) {
+        arr[dstIndex] = chunk::charCodeAt(j);
+      }
+    });
+    res = responseType === 'blob'
+      ? new Blob([arr], { type: msg.contentType })
       : arr.buffer;
+  } else {
+    // text, blob, arraybuffer
+    res = raw;
   }
-  // text
-  return response;
+  // `response` is sent only when changed so we need to remember it for response-less events
+  req.response = res;
+  // `raw` is decoded once per `response` change so we reuse the result just like native XHR
+  delete req.raw;
+  return res;
 }
 
 // request object functions
-function callback(req, res) {
-  const cb = req.details[`on${res.type}`];
-  if (cb) {
-    if (res.data.response
-        && !('rawResponse' in res)
-        && (req.details.responseType || 'text') !== 'text') {
-      res.rawResponse = res.data.response;
-      defineProperty(res.data, 'response', {
-        configurable: true,
-        get() {
-          const value = parseData(res.rawResponse, res, req.details);
-          defineProperty(this, 'response', { value });
-          return value;
-        },
-      });
-    }
-    res.data.context = req.details.context;
-    cb(res.data);
+async function callback(req, msg) {
+  if (msg.chunk) {
+    receiveChunk(req, msg.chunk);
+    return;
   }
-  if (res.type === 'loadend') delete idMap[req.id];
+  const { chunksPromise, opts } = req;
+  const cb = opts[`on${msg.type}`];
+  if (chunksPromise) {
+    await chunksPromise;
+  }
+  if (cb) {
+    const { data } = msg;
+    const {
+      response,
+      responseHeaders: headers,
+      responseText: text,
+    } = data;
+    if (response && !('raw' in req)) {
+      req.raw = msg.chunked
+        ? receiveAllChunks(req, response, msg)
+        : response;
+    }
+    if (req.raw?.then) {
+      req.raw = await req.raw;
+    }
+    defineProperty(data, 'response', {
+      configurable: true,
+      get() {
+        const value = 'raw' in req ? parseData(req, msg) : req.response;
+        defineProperty(this, 'response', { value });
+        return value;
+      },
+    });
+    if (headers != null) req.headers = headers;
+    if (text != null) req.text = text[0] === 'same' ? response : text;
+    data.context = opts.context;
+    data.responseHeaders = req.headers;
+    data.responseText = req.text;
+    cb(data);
+  }
+  if (msg.type === 'loadend') delete idMap[req.id];
 }
 
-function start(req, id) {
-  const { details, scriptId } = req;
-  const payload = {
-    id,
-    scriptId,
-    anonymous: details.anonymous,
-    method: details.method,
-    url: details.url,
-    user: details.user,
-    password: details.password,
-    headers: details.headers,
-    timeout: details.timeout,
-    overrideMimeType: details.overrideMimeType,
-  };
+function receiveAllChunks(req, response, { dataSize, numChunks }) {
+  let res = [response];
+  req.dataSize = dataSize;
+  if (numChunks > 1) {
+    req.chunks = res;
+    req.chunksPromise = new Promise(resolve => {
+      req.resolve = resolve;
+    });
+    res = req.chunksPromise;
+  }
+  return res;
+}
+
+function receiveChunk(req, { data, i, last }) {
+  const { chunks } = req;
+  chunks[i] = data;
+  if (last) {
+    req.resolve(chunks);
+    delete req.chunksPromise;
+    delete req.chunks;
+    delete req.resolve;
+  }
+}
+
+async function start(req, id) {
+  const { opts, scriptId } = req;
+  // withCredentials is for GM4 compatibility and used only if `anonymous` is not set,
+  // it's true by default per the standard/historical behavior of gmxhr
+  const { data, withCredentials = true, anonymous = !withCredentials } = opts;
   req.id = id;
   idMap[id] = req;
-  const { responseType } = details;
-  if (responseType) {
-    if (['arraybuffer', 'blob']::includes(responseType)) {
-      payload.responseType = 'arraybuffer';
-    } else if (!['document', 'json', 'text']::includes(responseType)) {
-      log('warn', null, `Unknown responseType "${responseType}", see https://violentmonkey.github.io/api/gm/#gm_xmlhttprequest for more detail.`);
-    }
-  }
-  encodeBody(details.data)
-  .then((body) => {
-    payload.data = body;
-    bridge.post({
-      cmd: 'HttpRequest',
-      data: payload,
-    });
-  });
+  bridge.post('HttpRequest', assign({
+    id,
+    scriptId,
+    anonymous,
+    data: data == null && []
+      // `binary` is for TM/GM-compatibility + non-objects = must use a string `data`
+      || (opts.binary || typeof data !== 'object') && [`${data}`]
+      // FF56+ can send any cloneable data directly, FF52-55 can't due to https://bugzil.la/1371246
+      || (bridge.isFirefox >= 56) && [data]
+      // TODO: support huge data by splitting it to multiple messages
+      || await encodeBody(data),
+    responseType: getResponseType(opts),
+  }, objectPick(opts, [
+    'headers',
+    'method',
+    'overrideMimeType',
+    'password',
+    'timeout',
+    'url',
+    'user',
+  ])));
 }
 
 function getFullUrl(url) {
@@ -129,54 +189,34 @@ function getFullUrl(url) {
   return a::getHref();
 }
 
-const { keys, getAll } = FormData.prototype;
-const { FileReader } = global;
-const { readAsArrayBuffer } = FileReader.prototype;
-
-async function encodeBody(body) {
-  const cls = getType(body);
-  switch (cls) {
-  case 'formdata': {
-    const data = {};
-    const resolveKeyValues = async (key) => {
-      const values = body::getAll(key)::map(encodeBody);
-      data[key] = await Promise.all(values);
-    };
-    await Promise.all([...body::keys()]::map(resolveKeyValues));
-    return { cls, value: data };
-  }
+function getResponseType({ responseType = '' }) {
+  switch (responseType) {
+  case 'arraybuffer':
   case 'blob':
-  case 'file':
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const buf = reader.result;
-        const size = buf.byteLength;
-        // The max number of arguments varies between JS engines but it's >32k so 10k is safe
-        const stepSize = 10e3;
-        const stringChunks = [];
-        for (let from = 0; from < size; from += stepSize) {
-          const sourceChunk = new Uint8Array(buf, from, Math.min(stepSize, size - from));
-          stringChunks::push(fromCharCode(...sourceChunk));
-        }
-        resolve({
-          cls,
-          value: stringChunks::join(''),
-          type: body.type,
-          name: body.name,
-          lastModified: body.lastModified,
-        });
-      };
-      reader::readAsArrayBuffer(body);
-    });
+    return responseType;
+  case 'document':
+  case 'json':
+  case 'text':
+  case '':
+    break;
   default:
-    if (body) return { cls, value: jsonDump(body) };
+    log('warn', null, `Unknown responseType "${responseType}",`
+      + ' see https://violentmonkey.github.io/api/gm/#gm_xmlhttprequest for more detail.');
   }
+  return '';
 }
 
-function getType(obj) {
-  const type = typeof obj;
-  if (type !== 'object') return type;
-  const typeString = obj::objectToString(); // [object TYPENAME]
-  return typeString::slice(8, -1)::toLowerCase();
+/** Polyfill for Chrome's inability to send complex types over extension messaging */
+async function encodeBody(body) {
+  const wasBlob = body instanceof Blob;
+  const blob = wasBlob ? body : await new Response(body)::resBlob();
+  const reader = new FileReader();
+  return new Promise((resolve) => {
+    reader::addEventListener('load', () => resolve([
+      reader.result,
+      blob.type,
+      wasBlob,
+    ]));
+    reader::readAsDataURL(blob);
+  });
 }

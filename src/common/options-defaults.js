@@ -1,12 +1,21 @@
+import { INJECT_AUTO } from './consts';
+
 export default {
   isApplied: true,
-  autoUpdate: true,
+  autoUpdate: 1, // days, 0 = disable
   // ignoreGrant: false,
   lastUpdate: 0,
   lastModified: 0,
-  /** @type 'unique' | 'total' | '' */
+  /** @typedef {'unique' | 'total' | ''} VMBadgeMode */
+  /** @type VMBadgeMode */
   showBadge: 'unique',
+  badgeColor: '#880088',
+  badgeColorBlocked: '#888888',
   exportValues: true,
+  expose: { // use percent-encoding for '.'
+    'greasyfork%2Eorg': true,
+    'sleazyfork%2Eorg': false,
+  },
   closeAfterInstall: false,
   trackLocalFile: false,
   autoReload: false,
@@ -15,26 +24,44 @@ export default {
   syncScriptStatus: true,
   sync: null,
   customCSS: null,
+  importScriptData: true,
   importSettings: true,
   notifyUpdates: false,
+  notifyUpdatesGlobal: false, // `true` ignores script.config.notifyUpdates
   version: null,
-  defaultInjectInto: 'page', // 'page' | 'auto',
+  /** @type {'auto' | 'page' | 'content'} */
+  defaultInjectInto: INJECT_AUTO,
   filters: {
-    /** @type 'exec' | 'alpha' | 'update' */
+    /** @type {'name' | 'code' | 'all'} */
+    searchScope: 'name',
+    /** @type boolean */
+    showOrder: false,
+    /** @type {'exec' | 'alpha' | 'update'} */
     sort: 'exec',
+    /** @type boolean */
+    viewSingleColumn: false,
+    /** @type boolean */
+    viewTable: false,
   },
   filtersPopup: {
-    /** @type 'exec' | 'alpha' */
+    /** @type {'exec' | 'alpha'} */
     sort: 'exec',
     enabledFirst: false,
-    hideDisabled: false,
+    /** @type {'' | 'hide' | 'group'} where '' = show */
+    hideDisabled: '',
   },
   editor: {
     lineWrapping: false,
     indentWithTabs: false,
     indentUnit: 2,
+    tabSize: 2,
     undoDepth: 200,
   },
+  editorTheme: '',
+  editorThemeName: null,
+  editorWindow: false, // whether popup opens editor in a new window
+  editorWindowPos: {}, // { left, top, width, height }
+  editorWindowSimple: true, // whether to open a simplified popup or a normal browser window
   scriptTemplate: `\
 // ==UserScript==
 // @name        New script {{name}}

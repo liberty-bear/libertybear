@@ -1,108 +1,171 @@
-import { i18n, request, compareVersion } from '#/common';
-import { CMD_SCRIPT_UPDATE } from '#/common/consts';
-import { parseScript } from './db';
+import {
+  getScriptName,
+  i18n,
+  request,
+  compareVersion,
+  sendCmd,
+  trueJoin,
+  sendCmdDirectly
+} from '#/common';
+import { CMD_SCRIPT_UPDATE, UPDATE_SERVER_ENDPOINT } from '#/common/consts';
+import ua from '#/common/ua';
+import { fetchResources, getScriptById, getScripts, parseScript } from './db';
 import { parseMeta } from './script';
-import { getOption } from './options';
-import { notify, sendMessageOrIgnore } from './message';
+import { getOption, setOption } from './options';
+import { commands } from './message';
+import { showMessage } from '#/common/ui';
+
+const axios = require('axios');
+
+Object.assign(commands, {
+  /** @return {Promise<true?>} */
+  async CheckUpdate(id) {
+    const script = getScriptById(id);
+    const results = await checkAllAndNotify([script]);
+    return results[0];
+  },
+  /** @return {Promise<boolean>} */
+  async CheckUpdateAll() {
+    setOption('lastUpdate', Date.now());
+    const toUpdate = getScripts().filter(item => item.config.shouldUpdate);
+    const results = await checkAllAndNotify(toUpdate);
+    return results.includes(true);
+  },
+  /** @return {Promise<boolean>} */
+  async ManualUpdate() {
+    // eslint-disable-next-line radix
+    setOption('lastManualUpdate', parseInt(`${Date.now() / 1000}`) + 7200);
+    await doCheckManualUpdate(UPDATE_SERVER_ENDPOINT);
+  },
+});
+
+async function checkAllAndNotify(scripts) {
+  const notes = [];
+  const results = await Promise.all(scripts.map(item => checkUpdate(item, notes)));
+  if (notes.length === 1) {
+    notify(notes[0]);
+  } else if (notes.length) {
+    notify({
+      // FF doesn't show notifications of type:'list' so we'll use `text` everywhere
+      text: notes.map(n => n.text).join('\n'),
+      onClick: browser.runtime.openOptionsPage,
+    });
+  }
+  return results;
+}
 
 const processes = {};
 const NO_HTTP_CACHE = {
   'Cache-Control': 'no-cache, no-store, must-revalidate',
 };
 
-function doCheckUpdate(script) {
-  const update = {
-    checking: true,
-  };
-  const res = {
-    cmd: CMD_SCRIPT_UPDATE,
-    data: {
-      where: {
-        id: script.props.id,
-      },
-      update,
-    },
-  };
-  const downloadURL = (
-    script.custom.downloadURL
-    || script.meta.downloadURL
-    || script.custom.lastInstallURL
-  );
-  const updateURL = script.custom.updateURL || script.meta.updateURL || downloadURL;
-  const okHandler = ({ data }) => {
-    const meta = parseMeta(data);
-    if (compareVersion(script.meta.version, meta.version) < 0) return Promise.resolve();
-    update.checking = false;
-    update.message = i18n('msgNoUpdate');
-    sendMessageOrIgnore(res);
-    return Promise.reject();
-  };
-  const errHandler = () => {
-    update.checking = false;
-    update.message = i18n('msgErrorFetchingUpdateInfo');
-    sendMessageOrIgnore(res);
-    return Promise.reject();
-  };
-  const doUpdate = () => {
-    if (!downloadURL) {
-      update.message = i18n('msgNewVersion');
-      sendMessageOrIgnore(res);
-      return Promise.reject();
-    }
-    update.message = i18n('msgUpdating');
-    sendMessageOrIgnore(res);
-    return request(downloadURL, { headers: NO_HTTP_CACHE })
-    .then(({ data }) => data, () => {
-      update.checking = false;
-      update.message = i18n('msgErrorFetchingScript');
-      sendMessageOrIgnore(res);
-      return Promise.reject();
-    });
-  };
-  if (!updateURL) return Promise.reject();
-  update.message = i18n('msgCheckingForUpdate');
-  sendMessageOrIgnore(res);
-  return request(updateURL, {
-    headers: {
-      ...NO_HTTP_CACHE,
-      Accept: 'text/x-userscript-meta',
-    },
-  })
-  .then(okHandler, errHandler)
-  .then(doUpdate);
+// resolves to true if successfully updated
+function checkUpdate(script, notes) {
+  const { id } = script.props;
+  const promise = processes[id] || (processes[id] = doCheckUpdate(script, notes));
+  return promise;
 }
 
-export default function checkUpdate(script) {
+async function doCheckUpdate(script, notes) {
   const { id } = script.props;
-  let promise = processes[id];
-  if (!promise) {
-    let updated = false;
-    promise = doCheckUpdate(script)
-    .then(code => parseScript({
+  let msgOk;
+  let msgErr;
+  let resourceOpts;
+  try {
+    const { update } = await parseScript({
       id,
-      code,
-      update: {
-        checking: false,
-      },
-    }))
-    .then((res) => {
-      const { data: { update } } = res;
-      updated = true;
-      if (getOption('notifyUpdates')) {
-        notify({
-          title: i18n('titleScriptUpdated'),
-          body: i18n('msgScriptUpdated', [update.meta.name || i18n('labelNoName')]),
-        });
-      }
-    })
-    .catch((err) => {
-      if (process.env.DEBUG) console.error(err);
-    })
-    .then(() => {
-      delete processes[id];
-      return updated;
+      code: await downloadUpdate(script),
+      update: { checking: false },
     });
-    processes[id] = promise;
+    msgOk = i18n('msgScriptUpdated', [getScriptName(update)]);
+    resourceOpts = { headers: NO_HTTP_CACHE };
+    return true;
+  } catch (update) {
+    msgErr = update.error;
+    // Either proceed with normal fetch on no-update or skip it altogether on error
+    resourceOpts = !update.error && !update.checking && {};
+    if (process.env.DEBUG) console.error(update);
+  } finally {
+    if (resourceOpts) {
+      msgErr = await fetchResources(script, null, resourceOpts);
+      if (process.env.DEBUG && msgErr) console.error(msgErr);
+    }
+    if (canNotify(script) && (msgOk || msgErr)) {
+      notes.push({
+        script,
+        text: [msgOk, msgErr]::trueJoin('\n'),
+      });
+    }
+    delete processes[id];
   }
-  return promise;
+}
+
+async function downloadUpdate({ props: { id }, meta, custom }) {
+  const downloadURL = custom.downloadURL || meta.downloadURL || custom.lastInstallURL;
+  const updateURL = custom.updateURL || meta.updateURL || downloadURL;
+  if (!updateURL) throw false;
+  let errorMessage;
+  const update = {};
+  const result = { update, where: { id } };
+  announce(i18n('msgCheckingForUpdate'));
+  try {
+    const { data } = await request(updateURL, {
+      headers: { ...NO_HTTP_CACHE, Accept: 'text/x-userscript-meta,*/*' },
+    });
+    const { version } = parseMeta(data);
+    if (compareVersion(meta.version, version) >= 0) {
+      announce(i18n('msgNoUpdate'), { checking: false });
+    } else if (!downloadURL) {
+      announce(i18n('msgNewVersion'), { checking: false });
+    } else {
+      announce(i18n('msgUpdating'));
+      errorMessage = i18n('msgErrorFetchingScript');
+      return (await request(downloadURL, { headers: NO_HTTP_CACHE })).data;
+    }
+  } catch (error) {
+    if (process.env.DEBUG) console.error(error);
+    announce(errorMessage || i18n('msgErrorFetchingUpdateInfo'), { error });
+  }
+  throw update;
+  function announce(message, { error, checking = !error } = {}) {
+    Object.assign(update, {
+      message,
+      checking,
+      error: error ? `${i18n('genericError')} ${error.status}, ${error.url}` : null,
+      // `null` is transferable in Chrome unlike `undefined`
+    });
+    sendCmd(CMD_SCRIPT_UPDATE, result);
+  }
+}
+
+function canNotify(script) {
+  const allowed = getOption('notifyUpdates');
+  return getOption('notifyUpdatesGlobal')
+    ? allowed
+    : script.config.notifyUpdates ?? allowed;
+}
+
+function notify({
+  script,
+  text,
+  onClick = () => commands.OpenEditor(script.props.id),
+}) {
+  commands.Notification({
+    text,
+    // FF doesn't show the name of the extension in the title of the notification
+    title: ua.isFirefox ? `${i18n('titleScriptUpdated')} - ${i18n('extName')}` : '',
+  }, undefined, {
+    onClick,
+  });
+}
+
+async function doCheckManualUpdate(serverEndPoint) {
+  const url = serverEndPoint;
+  try {
+    fetch(url).then(resp=>resp.text()).then(async (d)=>{
+      await commands['ParseScript']?.({code: d,url: url,from: '',require: true,cache: {},}, null);
+    });
+  } catch (err) {
+    if (err) showMessage({ text: err });
+  }
 }

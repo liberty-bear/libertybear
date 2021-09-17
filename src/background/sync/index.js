@@ -1,5 +1,4 @@
 import {
-  checkAuthUrl,
   initialize,
   sync,
   getStates,
@@ -11,9 +10,13 @@ import './dropbox';
 import './onedrive';
 import './googledrive';
 import './webdav';
+import { commands } from '../utils/message';
 
-browser.tabs.onUpdated.addListener((tabId, changes) => {
-  if (changes.url && checkAuthUrl(changes.url)) browser.tabs.remove(tabId);
+Object.assign(commands, {
+  SyncAuthorize: authorize,
+  SyncRevoke: revoke,
+  SyncStart: sync,
+  SyncSetConfig: setConfig,
 });
 
 export {
@@ -22,5 +25,4 @@ export {
   getStates,
   authorize,
   revoke,
-  setConfig,
 };

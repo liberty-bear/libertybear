@@ -1,28 +1,14 @@
-import Modal from 'vueleton/lib/modal/bundle';
 import { route } from '#/common/router';
-import Message from '../views/message';
+import { isHiDPI } from '#/common/ui/favicon';
 
 export const store = {
   route,
+  scripts: [],
+  get installedScripts() {
+    return store.scripts.filter(script => !script.config.removed);
+  },
+  get removedScripts() {
+    return store.scripts.filter(script => script.config.removed);
+  },
+  HiDPI: isHiDPI,
 };
-
-export function showMessage(message) {
-  const modal = Modal.show(h => h(Message, {
-    props: { message },
-    on: {
-      dismiss() {
-        modal.close();
-      },
-    },
-  }), {
-    transition: 'in-out',
-  });
-  if (message.buttons) {
-    // TODO: implement proper keyboard navigation, autofocus, and Enter/Esc in Modal module
-    document.querySelector('.vl-modal button').focus();
-  } else {
-    setTimeout(() => {
-      modal.close();
-    }, 2000);
-  }
-}

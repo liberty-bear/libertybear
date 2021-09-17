@@ -1,105 +1,126 @@
-import { noop } from '#/common';
-import { getValueStoresByIds, dumpValueStores, dumpValueStore } from './db';
+import { isEmpty, sendTabCmd } from '#/common';
+import { forEachEntry, forEachKey, objectSet } from '#/common/object';
+import { getScript, getValueStoresByIds, dumpValueStores } from './db';
+import { commands } from './message';
 
-const openers = {}; // scriptId: { openerId: 1, ... }
-const tabScripts = {}; // openerId: { scriptId: 1, ... }
-let cache;
-let timer;
+const openers = {}; // { scriptId: { tabId: { frameId: 1, ... }, ... } }
+let cache = {}; // { scriptId: { key: { last: value, tabId: { frameId: value } } } }
+let updateScheduled;
 
-browser.tabs.onRemoved.addListener((id) => {
-  resetValueOpener(id);
+Object.assign(commands, {
+  /** @return {Promise<Object>} */
+  async GetValueStore(id) {
+    const stores = await getValueStoresByIds([id]);
+    return stores[id] || {};
+  },
+  /** @param {{ where, store }[]} data
+   * @return {Promise<void>} */
+  async SetValueStores(data) {
+    // Value store will be replaced soon.
+    const stores = data.reduce((res, { where, store }) => {
+      const id = where.id || getScript(where)?.props.id;
+      if (id) res[id] = store;
+      return res;
+    }, {});
+    await Promise.all([
+      dumpValueStores(stores),
+      broadcastValueStores(groupStoresByFrame(stores)),
+    ]);
+  },
+  /** @return {void} */
+  UpdateValue({ id, key, value = null }, src) {
+    objectSet(cache, [id, key, 'last'], value);
+    objectSet(cache, [id, key, src.tab.id, src.frameId], value);
+    updateLater();
+  },
 });
 
-export function updateValueStore(id, update) {
-  updateLater();
-  const { key, value } = update;
-  if (!cache) cache = {};
-  let updates = cache[id];
-  if (!updates) {
-    updates = {};
-    cache[id] = updates;
-  }
-  updates[key] = value || null;
-}
+browser.tabs.onRemoved.addListener(resetValueOpener);
+browser.tabs.onReplaced.addListener((addedId, removedId) => resetValueOpener(removedId));
 
-export function setValueStore(where, value) {
-  return dumpValueStore(where, value)
-  .then(broadcastUpdates);
-}
-
-export function resetValueOpener(openerId) {
-  const scriptMap = tabScripts[openerId];
-  if (scriptMap) {
-    Object.keys(scriptMap).forEach((scriptId) => {
-      const map = openers[scriptId];
-      if (map) delete map[openerId];
-    });
-    delete tabScripts[openerId];
-  }
-}
-
-export function addValueOpener(openerId, scriptIds) {
-  let scriptMap = tabScripts[openerId];
-  if (!scriptMap) {
-    scriptMap = {};
-    tabScripts[openerId] = scriptMap;
-  }
-  scriptIds.forEach((scriptId) => {
-    scriptMap[scriptId] = 1;
-    let openerMap = openers[scriptId];
-    if (!openerMap) {
-      openerMap = {};
-      openers[scriptId] = openerMap;
+export function resetValueOpener(tabId) {
+  openers::forEachEntry(([id, openerTabs]) => {
+    if (tabId in openerTabs) {
+      delete openerTabs[tabId];
+      if (isEmpty(openerTabs)) delete openers[id];
     }
-    openerMap[openerId] = 1;
   });
 }
 
-function updateLater() {
-  if (!timer) {
-    timer = Promise.resolve().then(doUpdate);
-    // timer = setTimeout(doUpdate);
+export function addValueOpener(tabId, frameId, scriptIds) {
+  scriptIds.forEach((id) => {
+    objectSet(openers, [id, tabId, frameId], 1);
+  });
+}
+
+async function updateLater() {
+  while (!updateScheduled) {
+    updateScheduled = true;
+    await 0;
+    const currentCache = cache;
+    cache = {};
+    await doUpdate(currentCache);
+    updateScheduled = false;
+    if (isEmpty(cache)) break;
   }
 }
 
-function doUpdate() {
-  const currentCache = cache;
-  cache = null;
+async function doUpdate(currentCache) {
   const ids = Object.keys(currentCache);
-  getValueStoresByIds(ids)
-  .then((valueStores) => {
-    ids.forEach((id) => {
-      const valueStore = valueStores[id] || {};
-      valueStores[id] = valueStore;
-      const updates = currentCache[id] || {};
-      Object.keys(updates).forEach((key) => {
-        const value = updates[key];
-        if (!value) delete valueStore[key];
-        else valueStore[key] = value;
+  const valueStores = await getValueStoresByIds(ids);
+  ids.forEach((id) => {
+    currentCache[id]::forEachEntry(([key, { last }]) => {
+      objectSet(valueStores, [id, key], last || undefined);
+    });
+  });
+  await Promise.all([
+    dumpValueStores(valueStores),
+    broadcastValueStores(groupCacheByFrame(currentCache), { partial: true }),
+  ]);
+}
+
+async function broadcastValueStores(tabFrameData, { partial } = {}) {
+  const tasks = [];
+  for (const [tabId, frames] of Object.entries(tabFrameData)) {
+    for (const [frameId, frameData] of Object.entries(frames)) {
+      if (!isEmpty(frameData)) {
+        if (partial) frameData.partial = true;
+        tasks.push(sendTabCmd(+tabId, 'UpdatedValues', frameData, { frameId: +frameId }));
+        if (tasks.length === 20) await Promise.all(tasks.splice(0)); // throttling
+      }
+    }
+  }
+  await Promise.all(tasks);
+}
+
+// Returns per tab/frame data with only the changed values
+function groupCacheByFrame(cacheData) {
+  const toSend = {};
+  cacheData::forEachEntry(([id, scriptData]) => {
+    const dataEntries = Object.entries(scriptData);
+    openers[id]::forEachEntry(([tabId, frames]) => {
+      frames::forEachKey((frameId) => {
+        dataEntries.forEach(([key, history]) => {
+          // Skipping this frame if its last recorded value is identical
+          if (history.last !== history[tabId]?.[frameId]) {
+            objectSet(toSend, [tabId, frameId, id, key], history.last);
+          }
+        });
       });
     });
-    return dumpValueStores(valueStores);
-  })
-  .then(broadcastUpdates)
-  .catch((err) => {
-    console.error('Values error:', err);
-  })
-  .then(() => {
-    timer = null;
-    if (cache) updateLater();
   });
+  return toSend;
 }
 
-function broadcastUpdates(updates) {
-  if (updates) {
-    const updatedOpeners = Object.keys(updates)
-    .reduce((map, scriptId) => Object.assign(map, openers[scriptId]), {});
-    Object.keys(updatedOpeners).forEach((openerId) => {
-      browser.tabs.sendMessage(+openerId, {
-        cmd: 'UpdatedValues',
-        data: updates,
-      })
-      .catch(noop);
+// Returns per tab/frame data
+function groupStoresByFrame(stores) {
+  const toSend = {};
+  stores::forEachEntry(([id, store]) => {
+    openers[id]::forEachEntry(([tabId, frames]) => {
+      frames::forEachKey(frameId => {
+        objectSet(toSend, [tabId, frameId, id], store);
+      });
     });
-  }
+  });
+  return toSend;
 }

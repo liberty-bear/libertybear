@@ -1,17 +1,15 @@
+/* SAFETY WARNING! Exports used by `injected` must make ::safe() calls,
+   when accessed after the initial event loop task in `injected/web`
+   or after the first content-mode userscript runs in `injected/content` */
+
+import { browser } from '#/common/consts';
+import { deepCopy } from './object';
 import { noop } from './util';
 
+export { normalizeKeys } from './object';
 export * from './util';
 
-export function i18n(name, args) {
-  return browser.i18n.getMessage(name, args) || name;
-}
 export const defaultImage = '/public/images/icon128.png';
-
-export function normalizeKeys(key) {
-  if (key == null) return [];
-  if (Array.isArray(key)) return key;
-  return `${key}`.split('.').filter(Boolean);
-}
 
 export function initHooks() {
   const hooks = [];
@@ -33,21 +31,65 @@ export function initHooks() {
   return { hook, fire };
 }
 
+/**
+ * @param {string} cmd
+ * @param data
+ * @param {{retry?: boolean, ignoreError?: boolean}} [options]
+ * @return {Promise}
+ */
 export function sendCmd(cmd, data, options) {
   return sendMessage({ cmd, data }, options);
 }
 
-export function sendMessage(payload, { retry } = {}) {
+// These need `src` parameter so we'll use sendCmd for them. We could have forged `src` via
+// browser.tabs.getCurrent but there's no need as they normally use only a tiny amount of data.
+const COMMANDS_WITH_SRC = [
+  'ConfirmInstall',
+  'Notification',
+  'TabClose',
+  'TabFocus',
+  'TabOpen',
+  'UpdateValue',
+/*
+  These are used only by content scripts where sendCmdDirectly can't be used anyway
+  'GetInjected',
+  'GetRequestId',
+  'HttpRequest',
+  'InjectionFeedback',
+  'SetPopup',
+*/
+];
+
+/**
+ * Sends the command+data directly so it's synchronous and faster than sendCmd thanks to deepCopy.
+ * WARNING! Make sure `cmd` handler doesn't use `src` or `cmd` is listed in COMMANDS_WITH_SRC.
+ */
+export function sendCmdDirectly(cmd, data, options) {
+  const bg = !COMMANDS_WITH_SRC.includes(cmd)
+    && browser.extension.getBackgroundPage?.();
+  return bg && bg !== window && bg.deepCopy
+    ? bg.handleCommandMessage(bg.deepCopy({ cmd, data })).then(deepCopy)
+    : sendCmd(cmd, data, options);
+}
+
+/**
+ * @param {number} tabId
+ * @param {string} cmd
+ * @param data
+ * @param {{frameId?: number}} [options]
+ * @return {Promise}
+ */
+export function sendTabCmd(tabId, cmd, data, options) {
+  return browser.tabs.sendMessage(tabId, { cmd, data }, options).catch(noop);
+}
+
+// ignoreError is always `true` when sending from the background script because it's a broadcast
+export function sendMessage(payload, { retry, ignoreError } = {}) {
   if (retry) return sendMessageRetry(payload);
-  const promise = browser.runtime.sendMessage(payload)
-  .then((res) => {
-    const { data, error } = res || {};
-    if (error) return Promise.reject(error);
-    return data;
-  });
-  promise.catch((err) => {
-    if (process.env.DEBUG) console.warn(err);
-  });
+  let promise = browser.runtime.sendMessage(payload);
+  if (ignoreError || window === browser.extension.getBackgroundPage?.()) {
+    promise = promise.catch(noop);
+  }
   return promise;
 }
 
@@ -57,11 +99,14 @@ export function sendMessage(payload, { retry } = {}) {
  * or when configured to restore the session, https://crbug.com/314686
  */
 export async function sendMessageRetry(payload, retries = 10) {
-  const makePause = ms => new Promise(resolve => setTimeout(resolve, ms));
   let pauseDuration = 10;
   for (; retries > 0; retries -= 1) {
-    const data = await sendMessage(payload).catch(noop);
-    if (data) return data;
+    try {
+      const data = await sendMessage(payload);
+      if (data) return data;
+    } catch (e) {
+      if (!e.isRuntime) throw e;
+    }
     await makePause(pauseDuration);
     pauseDuration *= 2;
   }
@@ -85,69 +130,8 @@ export function getLocaleString(meta, key) {
   return localeMeta || meta[key] || '';
 }
 
-const binaryTypes = [
-  'blob',
-  'arraybuffer',
-];
-
-/**
- * Make a request.
- * @param {string} url
- * @param {RequestInit} options
- * @return Promise
- */
-export function request(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const { responseType } = options;
-    xhr.open(options.method || 'GET', url, true);
-    if (binaryTypes.includes(responseType)) xhr.responseType = responseType;
-    const headers = Object.assign({}, options.headers);
-    let { body } = options;
-    if (body && Object.prototype.toString.call(body) === '[object Object]') {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(body);
-    }
-    Object.keys(headers).forEach((key) => {
-      xhr.setRequestHeader(key, headers[key]);
-    });
-    xhr.onload = () => {
-      const res = getResponse(xhr, {
-        // status for `file:` protocol will always be `0`
-        status: xhr.status || 200,
-      });
-      if (res.status > 300) reject(res);
-      else resolve(res);
-    };
-    xhr.onerror = () => {
-      const res = getResponse(xhr, { status: -1 });
-      reject(res);
-    };
-    xhr.onabort = xhr.onerror;
-    xhr.ontimeout = xhr.onerror;
-    xhr.send(body);
-  });
-  function getResponse(xhr, extra) {
-    const { responseType } = options;
-    let data;
-    if (binaryTypes.includes(responseType)) {
-      data = xhr.response;
-    } else {
-      data = xhr.responseText;
-    }
-    if (responseType === 'json') {
-      try {
-        data = JSON.parse(data);
-      } catch (e) {
-        // Ignore invalid JSON
-      }
-    }
-    return Object.assign({
-      url,
-      data,
-      xhr,
-    }, extra);
-  }
+export function getScriptName(script) {
+  return script.custom.name || getLocaleString(script.meta, 'name') || `#${script.props.id}`;
 }
 
 export function getFullUrl(url, base) {
@@ -166,22 +150,6 @@ export function isRemote(url) {
   return url && !(/^(file:|data:|https?:\/\/localhost[:/]|http:\/\/127\.0\.0\.1[:/])/.test(url));
 }
 
-export function cache2blobUrl(raw, { defaultType, type: overrideType } = {}) {
-  if (raw) {
-    const parts = `${raw}`.split(',');
-    const { length } = parts;
-    const b64 = parts[length - 1];
-    const type = overrideType || parts[length - 2] || defaultType || '';
-    // Binary string is not supported by blob constructor,
-    // so we have to transform it into array buffer.
-    const bin = window.atob(b64);
-    const arr = new window.Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i);
-    const blob = new Blob([arr], { type });
-    return URL.createObjectURL(blob);
-  }
-}
-
 export function encodeFilename(name) {
   // `escape` generated URI has % in it
   return name.replace(/[-\\/:*?"<>|%\s]/g, (m) => {
@@ -193,4 +161,29 @@ export function encodeFilename(name) {
 
 export function decodeFilename(filename) {
   return filename.replace(/-([0-9a-f]{2})/g, (_m, g) => String.fromCharCode(parseInt(g, 16)));
+}
+
+export async function getActiveTab() {
+  return (
+    await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    })
+  )[0] || (
+    // Chrome bug workaround when an undocked devtools window is focused
+    await browser.tabs.query({
+      active: true,
+      windowId: (await browser.windows.getCurrent()).id,
+    })
+  )[0];
+}
+
+export function makePause(ms) {
+  return ms < 0
+    ? Promise.resolve()
+    : new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function trueJoin(separator) {
+  return this.filter(Boolean).join(separator);
 }

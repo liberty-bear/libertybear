@@ -1,9 +1,9 @@
 import Vue from 'vue';
-import {
-  sendCmd, i18n, getLocaleString, cache2blobUrl,
-} from '#/common';
+import '#/common/browser';
+import { sendCmdDirectly, i18n, getLocaleString } from '#/common';
 import handlers from '#/common/handlers';
-import loadZip from '#/common/zip';
+import { loadScriptIcon } from '#/common/load-script-icon';
+import options from '#/common/options';
 import '#/common/ui/style';
 import { store } from './utils';
 import App from './views/app';
@@ -12,8 +12,6 @@ Vue.prototype.i18n = i18n;
 
 Object.assign(store, {
   loading: false,
-  cache: {},
-  scripts: [],
   sync: [],
   title: null,
 });
@@ -26,14 +24,9 @@ function initialize() {
   })
   .$mount();
   document.body.append(vm.$el);
-  loadZip()
-  .then((zip) => {
-    store.zip = zip;
-    zip.workerScriptsPath = '/public/lib/zip.js/';
-  });
 }
 
-function initScript(script) {
+async function initScript(script) {
   const meta = script.meta || {};
   const localeName = getLocaleString(meta, 'name');
   const search = [
@@ -43,38 +36,29 @@ function initScript(script) {
     getLocaleString(meta, 'description'),
     script.custom.name,
     script.custom.description,
-  ].filter(Boolean).join('\n').toLowerCase();
+  ].filter(Boolean).join('\n');
   const name = script.custom.name || localeName;
   const lowerName = name.toLowerCase();
   script.$cache = { search, name, lowerName };
+  if (!await loadScriptIcon(script, store.cache)) {
+    script.safeIcon = `/public/images/icon${
+      store.HiDPI ? 128 : script.config.removed && 32 || 38
+    }.png`;
+  }
 }
 
-function loadData() {
-  sendCmd('GetData', null, { retry: true })
-  .then((data) => {
-    const oldCache = store.cache || {};
-    store.cache = data.cache;
-    store.sync = data.sync;
-    store.scripts = data.scripts;
-    if (store.scripts) {
-      store.scripts.forEach(initScript);
-    }
-    if (store.cache) {
-      Object.keys(store.cache).forEach((url) => {
-        const raw = store.cache[url];
-        if (oldCache[url]) {
-          store.cache[url] = oldCache[url];
-          delete oldCache[url];
-        } else {
-          store.cache[url] = cache2blobUrl(raw, { defaultType: 'image/png' });
-        }
-      });
-    }
-    Object.values(oldCache).forEach((blobUrl) => {
-      URL.revokeObjectURL(blobUrl);
-    });
-    store.loading = false;
-  });
+export async function loadData() {
+  const id = store.route.paths[1];
+  const params = id ? [+id].filter(Boolean) : null;
+  const [{ cache, scripts, sync }] = await Promise.all([
+    sendCmdDirectly('GetData', params, { retry: true }),
+    options.ready,
+  ]);
+  store.cache = cache;
+  scripts?.forEach(initScript);
+  store.scripts = scripts;
+  store.sync = sync;
+  store.loading = false;
 }
 
 function initMain() {
@@ -97,6 +81,7 @@ function initMain() {
       const index = store.scripts.findIndex(item => item.props.id === data.where.id);
       if (index >= 0) {
         const updated = Object.assign({}, store.scripts[index], data.update);
+        if (updated.error && !data.update.error) updated.error = null;
         Vue.set(store.scripts, index, updated);
         initScript(updated);
       }

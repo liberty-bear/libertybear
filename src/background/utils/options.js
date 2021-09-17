@@ -1,15 +1,32 @@
-import { initHooks, debounce, normalizeKeys } from '#/common';
-import { objectGet, objectSet } from '#/common/object';
+import {
+  debounce, ensureArray, initHooks, normalizeKeys,
+} from '#/common';
+import { mapEntry, objectGet, objectSet } from '#/common/object';
 import defaults from '#/common/options-defaults';
-import { register } from './init';
+import { preInitialize } from './init';
+import { commands } from './message';
+
+Object.assign(commands, {
+  /** @return {Object} */
+  GetAllOptions() {
+    return commands.GetOptions(defaults);
+  },
+  /** @return {Object} */
+  GetOptions(data) {
+    return data::mapEntry(([key]) => getOption(key));
+  },
+  /** @return {void} */
+  SetOptions(data) {
+    ensureArray(data).forEach(item => setOption(item.key, item.value));
+  },
+});
 
 let changes = {};
 const hooks = initHooks();
 const callHooksLater = debounce(callHooks, 100);
 
 let options = {};
-let ready = false;
-const init = browser.storage.local.get('options')
+let initPending = browser.storage.local.get('options')
 .then(({ options: data }) => {
   if (data && typeof data === 'object') options = data;
   if (process.env.DEBUG) {
@@ -18,14 +35,16 @@ const init = browser.storage.local.get('options')
   if (!objectGet(options, 'version')) {
     setOption('version', 1);
   }
-})
-.then(() => {
-  ready = true;
+  initPending = null;
 });
-register(init);
+preInitialize.push(initPending);
 
 function fireChange(keys, value) {
-  objectSet(changes, keys, value);
+  // Flattening key path so the subscribers can update nested values without overwriting the parent
+  const key = keys.join('.');
+  // Ensuring the correct order when updates were mixed like this: foo.bar=1; foo={bar:2}; foo.bar=3
+  delete changes[key];
+  changes[key] = value;
   callHooksLater();
 }
 
@@ -48,8 +67,8 @@ export function getDefaultOption(key) {
 }
 
 export function setOption(key, value) {
-  if (!ready) {
-    init.then(() => {
+  if (initPending) {
+    initPending.then(() => {
       setOption(key, value);
     });
     return;
@@ -69,13 +88,6 @@ export function setOption(key, value) {
       console.log('Options updated:', optionKey, value, options); // eslint-disable-line no-console
     }
   }
-}
-
-export function getAllOptions() {
-  return Object.keys(defaults).reduce((res, key) => {
-    res[key] = getOption(key);
-    return res;
-  }, {});
 }
 
 export const hookOptions = hooks.hook;

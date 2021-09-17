@@ -1,0 +1,34 @@
+.dragging {
+  // using both classes to override normal .script regardless of bundling order
+  &.script {
+    position: fixed;
+    top: 0;
+    left: 0;
+    margin: 0;
+    z-index: 9;
+    transition: none;
+    pointer-events: none;
+    background-color: hsl(34, 75%, 93%);
+    @media (prefers-color-scheme: dark) {
+      background: hsl(34, 15%, 15%);
+    }
+    &.disabled {
+      background-color: hsl(34, 30%, 88%);
+      @media (prefers-color-scheme: dark) {
+        background: hsl(34, 10%, 12%);
+      }
+    }
+  }
+  &-noscroll {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    content: "";
+    touch-action: none;
+  }
+  &-placeholder {
+    visibility: hidden;
+  }
+}

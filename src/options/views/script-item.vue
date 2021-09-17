@@ -1,72 +1,106 @@
 <template>
   <div
     class="script"
-    :class="{ disabled: !script.config.enabled, removed: script.config.removed }"
+    :class="{
+      disabled: !script.config.enabled,
+      removed: script.config.removed,
+      error: script.error,
+      focused: focused,
+      hotkeys: focused && showHotkeys,
+    }"
+    :tabIndex="tabIndex"
     :draggable="draggable"
-    @dragstart.prevent="onDragStart"
-    @keydownEnter="onEdit">
-    <img class="script-icon hidden-xs" :src="safeIcon">
-    <div class="script-info flex">
-      <div class="script-name ellipsis flex-auto" v-text="script.$cache.name"></div>
+    @focus="onFocus"
+    @blur="onBlur">
+    <div class="script-icon hidden-xs">
+      <a @click="onEdit" :data-hotkey="hotkeys.edit" data-hotkey-table tabIndex="-1">
+        <img :src="script.safeIcon">
+      </a>
+    </div>
+    <div class="script-info flex ml-1c">
+      <span class="script-order" v-text="script.props.position"/>
+      <span
+        class="script-name ellipsis flex-auto"
+        v-text="script.$cache.name"
+        @click.exact="nameClickable && onEdit()"
+        :tabIndex="nameClickable ? tabIndex : -1"
+      />
       <template v-if="canRender">
-        <tooltip
-          v-if="author"
-          :content="i18n('labelAuthor') + script.meta.author"
-          class="script-author ml-1 hidden-sm"
-          align="end">
-          <icon name="author"></icon>
+        <tooltip v-if="author" :content="i18n('labelAuthor') + script.meta.author"
+                 class="script-author ml-1c hidden-sm"
+                 align="end">
+          <icon name="author" />
           <a
             v-if="author.email"
-            class="ellipsis ml-1"
+            class="ellipsis"
             :href="`mailto:${author.email}`"
             v-text="author.name"
+            :tabIndex="tabIndex"
           />
-          <span class="ellipsis ml-1" v-else v-text="author.name"></span>
+          <span class="ellipsis" v-else v-text="author.name" />
         </tooltip>
-        <tooltip class="ml-1 hidden-sm" :content="updatedAt.title" align="end">
-          <span v-text="script.meta.version ? `v${script.meta.version}` : ''"></span>
-          <span class="ml-1" v-text="updatedAt.show"></span>
+        <span class="version ellipsis"
+              v-text="script.meta.version ? `v${script.meta.version}` : ''"/>
+        <tooltip class="updated hidden-sm ml-1c" :content="updatedAt.title" align="end">
+          {{ updatedAt.show }}
         </tooltip>
-        <div v-if="script.config.removed" class="ml-1">
+        <div v-if="script.config.removed">
           <tooltip :content="i18n('buttonRestore')" placement="left">
-            <span class="btn-ghost" @click="onRestore">
+            <a
+              class="btn-ghost"
+              @click="onRestore"
+              :data-hotkey="hotkeys.restore"
+              :tabIndex="tabIndex">
               <icon name="undo"></icon>
-            </span>
+            </a>
           </tooltip>
         </div>
       </template>
     </div>
-    <template v-if="canRender">
-      <div class="script-buttons flex">
+    <div class="script-buttons flex">
+      <template v-if="canRender">
         <div class="flex-auto flex flex-wrap">
           <tooltip :content="i18n('buttonEdit')" align="start">
-            <span class="btn-ghost" @click="onEdit">
+            <a class="btn-ghost" @click="onEdit" :data-hotkey="hotkeys.edit" :tabIndex="tabIndex">
               <icon name="code"></icon>
-            </span>
+            </a>
           </tooltip>
           <tooltip :content="labelEnable" align="start">
-            <span class="btn-ghost" @click="onEnable">
+            <a
+              class="btn-ghost"
+              @click="onToggle"
+              :data-hotkey="hotkeys.toggle"
+              :tabIndex="tabIndex">
               <icon :name="`toggle-${script.config.enabled ? 'on' : 'off'}`"></icon>
-            </span>
+            </a>
           </tooltip>
           <tooltip
             :disabled="!canUpdate || script.checking"
             :content="i18n('buttonUpdate')"
             align="start">
-            <span class="btn-ghost" @click="onUpdate">
+            <a
+              class="btn-ghost"
+              @click="onUpdate"
+              :data-hotkey="hotkeys.update"
+              :tabIndex="canUpdate ? tabIndex : -1">
               <icon name="refresh"></icon>
-            </span>
+            </a>
           </tooltip>
           <span class="sep"></span>
           <tooltip :disabled="!homepageURL" :content="i18n('buttonHome')" align="start">
-            <a class="btn-ghost" target="_blank" rel="noopener noreferrer" :href="homepageURL">
+            <a
+              class="btn-ghost"
+              target="_blank"
+              rel="noopener noreferrer"
+              :href="homepageURL"
+              :tabIndex="homepageURL ? tabIndex : -1">
               <icon name="home"></icon>
             </a>
           </tooltip>
           <tooltip :disabled="!description" :content="description" align="start">
-            <span class="btn-ghost">
+            <a class="btn-ghost" :tabIndex="description ? tabIndex : -1" @click="toggleTip">
               <icon name="info"></icon>
-            </span>
+            </a>
           </tooltip>
           <tooltip
             :disabled="!script.meta.supportURL"
@@ -76,57 +110,41 @@
               class="btn-ghost"
               target="_blank"
               rel="noopener noreferrer"
+              :tabIndex="script.meta.supportURL ? tabIndex : -1"
               :href="script.meta.supportURL">
               <icon name="question"></icon>
             </a>
           </tooltip>
-          <div class="script-message" v-text="script.message"></div>
+          <div class="script-message" v-text="script.message" :title="script.error"></div>
         </div>
         <tooltip :content="i18n('buttonRemove')" align="end">
-          <span class="btn-ghost" @click="onRemove">
+          <a class="btn-ghost" @click="onRemove" :data-hotkey="hotkeys.remove" :tabIndex="tabIndex">
             <icon name="trash"></icon>
-          </span>
+          </a>
         </tooltip>
-      </div>
-    </template>
+      </template>
+    </div>
   </div>
 </template>
 
 <script>
 import Tooltip from 'vueleton/lib/tooltip/bundle';
-import { sendCmd, getLocaleString, formatTime } from '#/common';
-import { objectGet } from '#/common/object';
+import { getLocaleString, formatTime } from '#/common';
 import Icon from '#/common/ui/icon';
-import { store } from '../utils';
+import { keyboardService, isInput, toggleTip } from '#/common/keyboard';
+import enableDragging from '../utils/dragging';
 
-const DEFAULT_ICON = '/public/images/icon48.png';
-const PADDING = 10;
-const SCROLL_GAP = 10;
-
-const images = {};
-function loadImage(url) {
-  if (!url) return Promise.reject();
-  let promise = images[url];
-  if (!promise) {
-    const cache = store.cache[url];
-    promise = cache
-      ? Promise.resolve(cache)
-      : new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(url);
-        img.onerror = () => reject(url);
-        img.src = url;
-      });
-    images[url] = promise;
-  }
-  return promise;
-}
+const itemMargin = 8;
 
 export default {
   props: [
     'script',
     'draggable',
     'visible',
+    'nameClickable',
+    'focused',
+    'hotkeys',
+    'showHotkeys',
   ],
   components: {
     Icon,
@@ -134,7 +152,6 @@ export default {
   },
   data() {
     return {
-      safeIcon: DEFAULT_ICON,
       canRender: this.visible,
     };
   },
@@ -189,191 +206,81 @@ export default {
       }
       return ret;
     },
+    tabIndex() {
+      return this.focused ? 0 : -1;
+    },
   },
   watch: {
     visible(visible) {
       // Leave it if the element is already rendered
       if (visible) this.canRender = true;
     },
+    focused(value, prevValue) {
+      const { $el } = this;
+      if (value && !prevValue && $el) {
+        const rect = $el.getBoundingClientRect();
+        const pRect = $el.parentNode.getBoundingClientRect();
+        let delta = 0;
+        if (rect.bottom > pRect.bottom - itemMargin) {
+          delta += rect.bottom - pRect.bottom + itemMargin;
+        } else if (rect.top < pRect.top + itemMargin) {
+          delta -= pRect.top - rect.top + itemMargin;
+        }
+        if (!isInput(document.activeElement)) {
+          // focus without scrolling, then scroll smoothly
+          $el.focus({ preventScroll: true });
+        }
+        this.$emit('scrollDelta', delta);
+      }
+    },
   },
   mounted() {
-    const { icon } = this.script.meta;
-    if (icon && icon !== this.safeIcon) {
-      const pathMap = objectGet(this.script, 'custom.pathMap') || {};
-      const fullUrl = pathMap[icon] || icon;
-      loadImage(fullUrl)
-      .then((url) => {
-        this.safeIcon = url;
-      }, () => {
-        this.safeIcon = DEFAULT_ICON;
-      });
-    }
+    enableDragging(this.$el, {
+      onDrop: (from, to) => this.$emit('move', { from, to }),
+    });
   },
   methods: {
     onEdit() {
-      this.$emit('edit', this.script.props.id);
-    },
-    markRemoved(removed) {
-      sendCmd('MarkRemoved', {
-        id: this.script.props.id,
-        removed,
-      });
+      this.$emit('edit', this.script);
     },
     onRemove() {
-      const rect = this.$el.getBoundingClientRect();
-      this.markRemoved(1);
-      this.$emit('remove', this.script.props.id, rect);
+      this.$emit('remove', this.script);
     },
     onRestore() {
-      this.markRemoved(0);
+      this.$emit('restore', this.script);
     },
-    onEnable() {
-      sendCmd('UpdateScriptInfo', {
-        id: this.script.props.id,
-        config: {
-          enabled: this.script.config.enabled ? 0 : 1,
-        },
-      });
+    onToggle() {
+      this.$emit('toggle', this.script);
     },
     onUpdate() {
-      sendCmd('CheckUpdate', this.script.props.id);
+      this.$emit('update', this.script);
     },
-    onDragStart(e) {
-      const el = e.currentTarget;
-      const parent = el.parentNode;
-      const rect = el.getBoundingClientRect();
-      const dragging = {
-        el,
-        offset: {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        },
-        delta: rect.height,
-        index: [].indexOf.call(parent.children, el),
-        elements: [].filter.call(parent.children, child => child !== el),
-        dragged: el.cloneNode(true),
-      };
-      this.dragging = dragging;
-      dragging.lastIndex = dragging.index;
-      const { dragged } = dragging;
-      dragged.classList.add('dragging');
-      dragged.style.left = `${rect.left}px`;
-      dragged.style.top = `${rect.top}px`;
-      dragged.style.width = `${rect.width}px`;
-      parent.appendChild(dragged);
-      el.classList.add('dragging-placeholder');
-      document.addEventListener('mousemove', this.onDragMouseMove, false);
-      document.addEventListener('mouseup', this.onDragMouseUp, false);
+    onFocus() {
+      keyboardService.setContext('scriptFocus', true);
     },
-    onDragMouseMove(e) {
-      const { dragging } = this;
-      const {
-        el, dragged, offset, elements, lastIndex,
-      } = dragging;
-      dragged.style.left = `${e.clientX - offset.x}px`;
-      dragged.style.top = `${e.clientY - offset.y}px`;
-      let hoveredIndex = elements.findIndex((item) => {
-        if (!item || item.classList.contains('dragging-moving')) return false;
-        const rect = item.getBoundingClientRect();
-        return (
-          e.clientX >= rect.left + PADDING
-          && e.clientX <= rect.left + rect.width - PADDING
-          && e.clientY >= rect.top + PADDING
-          && e.clientY <= rect.top + rect.height - PADDING
-        );
-      });
-      if (hoveredIndex >= 0) {
-        const hoveredEl = elements[hoveredIndex];
-        const isDown = hoveredIndex >= lastIndex;
-        let { delta } = dragging;
-        if (isDown) {
-          hoveredIndex += 1;
-          hoveredEl.parentNode.insertBefore(el, hoveredEl.nextElementSibling);
-        } else {
-          delta = -delta;
-          hoveredEl.parentNode.insertBefore(el, hoveredEl);
-        }
-        dragging.lastIndex = hoveredIndex;
-        this.onDragAnimate(dragging.elements.slice(
-          isDown ? lastIndex : hoveredIndex,
-          isDown ? hoveredIndex : lastIndex,
-        ), delta);
-      }
-      this.onDragScrollCheck(e.clientY);
+    onBlur() {
+      keyboardService.setContext('scriptFocus', false);
     },
-    onDragMouseUp() {
-      document.removeEventListener('mousemove', this.onDragMouseMove, false);
-      document.removeEventListener('mouseup', this.onDragMouseUp, false);
-      const { dragging } = this;
-      this.dragging = null;
-      dragging.dragged.remove();
-      dragging.el.classList.remove('dragging-placeholder');
-      this.$emit('move', {
-        from: dragging.index,
-        to: dragging.lastIndex,
-      });
-    },
-    onDragAnimate(elements, delta) {
-      elements.forEach((el) => {
-        if (!el) return;
-        el.classList.add('dragging-moving');
-        el.style.transition = 'none';
-        el.style.transform = `translateY(${delta}px)`;
-        el.addEventListener('transitionend', endAnimation, false);
-        setTimeout(() => {
-          el.style.transition = '';
-          el.style.transform = '';
-        });
-      });
-      function endAnimation(e) {
-        e.target.classList.remove('dragging-moving');
-        e.target.removeEventListener('transitionend', endAnimation, false);
-      }
-    },
-    onDragScrollCheck(y) {
-      const { dragging } = this;
-      let scrollSpeed = 0;
-      const offset = dragging.el.parentNode.getBoundingClientRect();
-      let delta = (y - (offset.bottom - SCROLL_GAP)) / SCROLL_GAP;
-      if (delta > 0) {
-        // scroll down
-        scrollSpeed = 1 + Math.min((delta * 5) | 0, 10);
-      } else {
-        // scroll up
-        delta = (offset.top + SCROLL_GAP - y) / SCROLL_GAP;
-        if (delta > 0) scrollSpeed = -1 - Math.min((delta * 5) | 0, 10);
-      }
-      dragging.scrollSpeed = scrollSpeed;
-      if (scrollSpeed) this.onDragScroll();
-    },
-    onDragScroll() {
-      const scroll = () => {
-        const { dragging } = this;
-        if (!dragging) return;
-        if (dragging.scrollSpeed) {
-          dragging.el.parentNode.scrollTop += dragging.scrollSpeed;
-          setTimeout(scroll, 32);
-        } else dragging.scrolling = false;
-      };
-      if (this.dragging && !this.dragging.scrolling) {
-        this.dragging.scrolling = true;
-        scroll();
-      }
+    toggleTip(e) {
+      toggleTip(e.target);
     },
   },
 };
 </script>
 
 <style>
-$rem: 14px;
+@import '../utils/dragging.css';
 
-$iconSize: calc(3 * $rem);
-$iconSizeSmaller: calc(2 * $rem);
+$rem: 14px;
+// The icon should use the real size we generate in `dist` to ensure crispness
+$iconSize: 38px;
+$iconSizeSmaller: 32px;
 $actionIconSize: calc(2 * $rem);
 
 $nameFontSize: $rem;
 
 $itemLineHeight: 1.5;
+$itemMargin: 8px;
 $itemPadT: 12px;
 $itemPadB: 5px;
 $itemHeight: calc(
@@ -390,28 +297,40 @@ $removedItemHeight: calc(
 
 .script {
   position: relative;
-  margin: 8px;
+  margin: $itemMargin 0 0 $itemMargin;
   padding: $itemPadT 10px $itemPadB;
-  border: 1px solid #ccc;
+  border: 1px solid var(--fill-3);
   border-radius: .3rem;
-  transition: transform .5s;
-  background: white;
+  transition: transform .25s;
+  // added in Chrome 41, FF64
+  @media (pointer: coarse) {
+    transition: none;
+  }
+  // fallback for pre-FF64
+  .touch & {
+    transition: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+  background: var(--bg);
+  width: calc((100% - $itemMargin) / var(--num-columns) - $itemMargin);
   height: $itemHeight;
   &:hover {
-    border-color: darkgray;
+    border-color: var(--fill-5);
   }
   .secondary {
-    color: gray;
+    color: var(--fill-8);
     font-size: small;
   }
   &.disabled,
   &.removed {
-    background: #f0f0f0;
-    color: #999;
+    background: var(--fill-1);
+    color: var(--fill-6);
   }
   &.disabled {
     .secondary {
-      color: darkgray;
+      color: var(--fill-5);
     }
   }
   &.removed {
@@ -422,11 +341,29 @@ $removedItemHeight: calc(
     }
   }
   &.focused {
-    box-shadow: 1px 2px 9px gray;
+    // bring the focused item to the front so that the box-shadow will not be overlapped
+    // by the next item
+    z-index: 1;
+    box-shadow: 1px 2px 9px var(--fill-7);
+    &:focus {
+      box-shadow: 1px 2px 9px var(--fill-9);
+    }
+  }
+  &.error {
+    border-color: #f008;
+    [*|href="#refresh"] {
+      fill: #f00;
+    }
+    .script-message {
+      color: #f00;
+    }
   }
   &-buttons {
     line-height: 1;
-    color: #3e4651;
+    color: hsl(215, 13%, 28%);
+    @media (prefers-color-scheme: dark) {
+      color: hsl(215, 10%, 55%);
+    }
     > .flex {
       align-items: center;
     }
@@ -434,7 +371,10 @@ $removedItemHeight: calc(
       display: none;
     }
     .disabled {
-      color: gainsboro;
+      color: var(--fill-2);
+      [data-hotkey]::after {
+        content: none;
+      }
     }
     .icon {
       display: block;
@@ -445,32 +385,42 @@ $removedItemHeight: calc(
     align-items: center;
   }
   &-icon {
-    position: absolute;
     width: $iconSize;
     height: $iconSize;
-    top: 1rem;
+    float: left;
+    cursor: pointer;
+    a {
+      display: block;
+    }
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      &:not([src]) {
+        visibility: hidden; // hiding the empty outline border while the image loads
+      }
+    }
     .disabled &,
     .removed & {
       filter: grayscale(.8);
+      opacity: .5;
     }
     .removed & {
       width: $iconSizeSmaller;
       height: $iconSizeSmaller;
-    }
-    ~ * {
-      margin-left: calc($iconSize + $rem / 2);
     }
   }
   &-name {
     font-weight: 500;
     font-size: $nameFontSize;
     .disabled & {
-      color: gray;
+      color: var(--fill-8);
     }
   }
   &-author {
     display: flex;
     align-items: center;
+    max-width: 30%;
     > .ellipsis {
       display: inline-block;
       max-width: 100px;
@@ -480,18 +430,139 @@ $removedItemHeight: calc(
     white-space: nowrap;
   }
 }
-.dragging {
-  position: fixed;
-  margin: 0;
-  z-index: 9;
-  &-placeholder {
-    visibility: hidden;
+
+.hotkeys [data-hotkey] {
+  position: relative;
+  &::after {
+    content: attr(data-hotkey);
+    position: absolute;
+    left: 50%;
+    bottom: 80%;
+    transform-origin: bottom;
+    transform: translate(-50%,0);
+    padding: .2em;
+    background: #fe6;
+    color: #333;
+    border: 1px solid #880;
+    border-radius: .2em;
+    font-size: .8rem;
+    line-height: 1;
   }
 }
 
-@media (max-width: 319px) {
-  .script-icon ~ * {
-    margin-left: 0;
+.scripts {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  padding: 0 0 $itemMargin 0;
+  &[data-table] {
+    &[data-columns="1"] .script,
+    &[data-columns="2"] .script:nth-child(odd),
+    &[data-columns="3"] .script:nth-child(3n + 1),
+    &[data-columns="4"] .script:nth-child(4n + 1) {
+      border-left: none;
+      margin-left: 0;
+    }
+    &[data-columns="1"], &[data-columns="3"] {
+      .script:nth-child(even) {
+        background-color: var(--fill-0-5);
+      }
+    }
+    &[data-columns="2"] .script {
+      &:nth-child(4n + 2),
+      &:nth-child(4n + 3) {
+        background-color: var(--fill-0-5);
+      }
+    }
+    &[data-columns="4"] .script {
+      &:nth-child(8n + 2),
+      &:nth-child(8n + 4),
+      &:nth-child(8n + 5),
+      &:nth-child(8n + 7) {
+        background-color: var(--fill-0-5);
+      }
+    }
+    .script {
+      display: flex;
+      align-items: center;
+      height: 2.5rem;
+      // --num-columns is set in tab-installed.vue
+      width: calc((100% - $itemMargin * (var(--num-columns) - 1)) / var(--num-columns));
+      margin: -1px 0 0 $itemMargin;
+      padding: 0 calc(2 * $itemMargin) 0 $itemMargin;
+      border-radius: 0;
+      background: none;
+      &:hover::after {
+        // using a separate element with z-index higher than a sibling's overlapped border
+        content: '';
+        position: absolute;
+        top: -1px;
+        left: -1px;
+        right: -1px;
+        bottom: -1px;
+        border: 1px solid var(--fill-6);
+        pointer-events: none;
+        z-index: 2;
+      }
+      &-name {
+        cursor: pointer;
+      }
+      &-icon {
+        width: 2rem;
+        height: 2rem;
+        order: 1;
+        margin-left: .5rem;
+      }
+      &-info {
+        order: 2;
+        flex: 1;
+        margin-left: .5rem;
+        line-height: 1.2; /* not using 1.1 as it cuts descender in "g" */
+        .updated, .version {
+          width: 6em;
+          text-align: right;
+          color: var(--fill-8);
+        }
+        .updated {
+          width: 3em;
+        }
+      }
+      &-buttons {
+        margin: 0;
+        min-width: 14rem;
+        > .flex {
+          width: auto;
+          > :first-child { /* edit button */
+            display: none;
+          }
+        }
+      }
+      &-author > .ellipsis {
+        max-width: 15vw;
+      }
+      &-message:not(:empty) {
+        position: absolute;
+        right: .5em;
+        top: 2em;
+        z-index: 3;
+        font-size: smaller;
+        padding: 1px .5em;
+        border-radius: .5em;
+        border: 1px solid var(--fill-5);
+        background: var(--bg);
+      }
+    }
+  }
+  &:not([data-table]) {
+    [data-hotkey-table]::after {
+      content: none;
+    }
+  }
+  &[data-show-order] .script-order::after {
+    content: '. ';
+  }
+  &:not([data-show-order]) .script-order {
+    display: none;
   }
 }
 </style>

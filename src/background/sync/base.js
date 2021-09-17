@@ -1,11 +1,12 @@
 import {
-  debounce, normalizeKeys, request, noop,
+  debounce, normalizeKeys, request, noop, makePause, ensureArray, sendCmd,
 } from '#/common';
+import { TIMEOUT_HOUR } from '#/common/consts';
 import {
-  objectGet, objectSet, objectPick, objectPurify,
+  forEachEntry, objectSet, objectPick, objectPurify,
 } from '#/common/object';
 import {
-  getEventEmitter, getOption, setOption, hookOptions, sendMessageOrIgnore,
+  getEventEmitter, getOption, setOption, hookOptions,
 } from '../utils';
 import {
   sortScripts,
@@ -16,7 +17,7 @@ import { script as pluginScript } from '../plugin';
 const serviceNames = [];
 const serviceClasses = [];
 const services = {};
-const autoSync = debounce(sync, 60 * 60 * 1000);
+const autoSync = debounce(sync, TIMEOUT_HOUR);
 let working = Promise.resolve();
 let syncConfig;
 
@@ -78,9 +79,8 @@ function serviceConfig(name) {
   }
   function set(key, val) {
     if (typeof key === 'object') {
-      const data = key;
-      Object.keys(data).forEach((k) => {
-        syncConfig.set(getKeys(k), data[k]);
+      key::forEachEntry(([k, v]) => {
+        syncConfig.set(getKeys(k), v);
       });
     } else {
       syncConfig.set(getKeys(key), val);
@@ -106,8 +106,7 @@ function serviceState(validStates, initialState, onChange) {
     return get();
   }
   function is(states) {
-    const stateArray = Array.isArray(states) ? states : [states];
-    return stateArray.includes(state);
+    return ensureArray(states).includes(state);
   }
   return { get, set, is };
 }
@@ -189,10 +188,7 @@ function extendService(options) {
 }
 
 const onStateChange = debounce(() => {
-  sendMessageOrIgnore({
-    cmd: 'UpdateSync',
-    data: getStates(),
-  });
+  sendCmd('UpdateSync', getStates());
 });
 
 export const BaseService = serviceFactory({
@@ -214,6 +210,7 @@ export const BaseService = serviceFactory({
     this.config = serviceConfig(this.name);
     this.authState = serviceState([
       'idle',
+      'no-auth',
       'initializing',
       'authorizing', // in case some services require asynchronous requests to get access_tokens
       'authorized',
@@ -273,13 +270,13 @@ export const BaseService = serviceFactory({
   prepare() {
     this.authState.set('initializing');
     return (this.initToken() ? Promise.resolve(this.user()) : Promise.reject({
-      type: 'unauthorized',
+      type: 'no-auth',
     }))
     .then(() => {
       this.authState.set('authorized');
     }, (err) => {
-      if (err && err.type === 'unauthorized') {
-        this.authState.set('unauthorized');
+      if (['no-auth', 'unauthorized'].includes(err?.type)) {
+        this.authState.set(err.type);
       } else {
         console.error(err);
         this.authState.set('error');
@@ -315,38 +312,22 @@ export const BaseService = serviceFactory({
   },
   loadData(options) {
     const { progress } = this;
-    let { delay } = options;
-    if (delay == null) {
-      delay = this.delayTime;
-    }
+    const { delay = this.delayTime } = options;
     let lastFetch = Promise.resolve();
     if (delay) {
       lastFetch = this.lastFetch
-      .then(ts => new Promise((resolve) => {
-        const delta = delay - (Date.now() - ts);
-        if (delta > 0) {
-          setTimeout(resolve, delta);
-        } else {
-          resolve();
-        }
-      }))
+      .then(ts => makePause(delay - (Date.now() - ts)))
       .then(() => Date.now());
       this.lastFetch = lastFetch;
     }
     progress.total += 1;
     onStateChange();
     return lastFetch.then(() => {
-      let { prefix } = options;
-      if (prefix == null) prefix = this.urlPrefix;
-      const headers = Object.assign({}, this.headers, options.headers);
+      options = Object.assign({}, options);
+      options.headers = Object.assign({}, this.headers, options.headers);
       let { url } = options;
-      if (url.startsWith('/')) url = prefix + url;
-      return request(url, {
-        headers,
-        method: options.method,
-        body: options.body,
-        responseType: options.responseType,
-      });
+      if (url.startsWith('/')) url = (options.prefix ?? this.urlPrefix) + url;
+      return request(url, options);
     })
     .then(({ data }) => ({ data }), error => ({ error }))
     .then(({ data, error }) => {
@@ -439,8 +420,7 @@ export const BaseService = serviceFactory({
           delLocal.push({ local: item });
         }
       });
-      Object.keys(remoteItemMap).forEach((uri) => {
-        const item = remoteItemMap[uri];
+      remoteItemMap::forEachEntry(([uri, item]) => {
         const info = remoteMetaData.info[uri];
         if (outdated) {
           putLocal.push({ remote: item, info });
@@ -569,23 +549,17 @@ function syncOne(service) {
   if (service.authState.is(['idle', 'error'])) return service.checkSync();
   if (service.authState.is('authorized')) return service.startSync();
 }
+
 export function sync() {
   const service = getService();
   return service && Promise.resolve(syncOne(service)).then(autoSync);
-}
-
-export function checkAuthUrl(url) {
-  return serviceNames.some((name) => {
-    const service = services[name];
-    const authorized = service.checkAuth && service.checkAuth(url);
-    return authorized;
-  });
 }
 
 export function authorize() {
   const service = getService();
   if (service) service.authorize();
 }
+
 export function revoke() {
   const service = getService();
   if (service) service.revoke();
@@ -595,11 +569,37 @@ export function setConfig(config) {
   const service = getService();
   if (service) {
     service.setUserConfig(config);
-    service.checkSync();
+    return service.checkSync();
   }
 }
 
+export async function openAuthPage(url, redirectUri) {
+  unregisterWebRequest(); // otherwise our new tabId will be ignored
+  browser.webRequest.onBeforeRequest.addListener(onBeforeRequest, {
+    urls: [`${redirectUri}*`],
+    types: ['main_frame'],
+    tabId: (await browser.tabs.create({ url })).id,
+  }, ['blocking']);
+}
+
+/**
+ * @param {chrome.webRequest.WebResponseDetails} info
+ * @returns {chrome.webRequest.BlockingResponse}
+ */
+function onBeforeRequest(info) {
+  if (getService().checkAuth?.(info.url)) {
+    browser.tabs.remove(info.tabId);
+    // If we unregister without setTimeout, API will ignore { cancel: true }
+    setTimeout(unregisterWebRequest, 0);
+    return { cancel: true };
+  }
+}
+
+function unregisterWebRequest() {
+  browser.webRequest.onBeforeRequest.removeListener(onBeforeRequest);
+}
+
 hookOptions((data) => {
-  const value = objectGet(data, 'sync.current');
+  const value = data?.['sync.current'];
   if (value) initialize();
 });

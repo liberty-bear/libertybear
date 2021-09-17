@@ -6,14 +6,15 @@ import { objectGet } from '#/common/object';
 import { dumpQuery, notify } from '../utils';
 import {
   getURI, getItemFilename, BaseService, register, isScriptFile,
+  openAuthPage,
 } from './base';
 
-const SECRET_KEY = JSON.parse(window.atob('eyJjbGllbnRfc2VjcmV0IjoiTjBEbTZJOEV3bkJaeE1xMUpuMHN3UER0In0='));
-const config = Object.assign({
-  client_id: '590447512361-05hjbhnf8ua3iha55e5pgqg15om0cpef.apps.googleusercontent.com',
+const config = {
+  client_id: process.env.SYNC_GOOGLE_CLIENT_ID,
+  client_secret: process.env.SYNC_GOOGLE_CLIENT_SECRET,
   redirect_uri: 'https://violentmonkey.github.io/auth_googledrive.html',
   scope: 'https://www.googleapis.com/auth/drive.appdata',
-}, SECRET_KEY);
+};
 const UNAUTHORIZED = { status: 'UNAUTHORIZED' };
 
 const GoogleDrive = BaseService.extend({
@@ -118,14 +119,14 @@ const GoogleDrive = BaseService.extend({
     };
     if (!this.config.get('refresh_token')) params.prompt = 'consent';
     const url = `https://accounts.google.com/o/oauth2/v2/auth?${dumpQuery(params)}`;
-    browser.tabs.create({ url });
+    openAuthPage(url, config.redirect_uri);
   },
   checkAuth(url) {
     const redirectUri = `${config.redirect_uri}?code=`;
     if (url.startsWith(redirectUri)) {
       this.authState.set('authorizing');
       this.authorized({
-        code: url.split('#')[0].slice(redirectUri.length),
+        code: decodeURIComponent(url.split('#')[0].slice(redirectUri.length)),
       })
       .then(() => this.checkSync());
       return true;
