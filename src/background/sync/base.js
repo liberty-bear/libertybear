@@ -196,7 +196,7 @@ export const BaseService = serviceFactory({
   displayName: 'BaseService',
   delayTime: 1000,
   urlPrefix: '',
-  metaFile: 'Violentmonkey',
+  metaFile: 'LibertyBear',
   properties: {
     authType: 'oauth',
   },
@@ -449,7 +449,7 @@ export const BaseService = serviceFactory({
           this.log('Upload script:', local.props.uri);
           return pluginScript.get(local.props.id)
           .then((code) => {
-            // XXX use version 1 to be compatible with Violentmonkey on other platforms
+            // XXX use version 1 to be compatible with LibertyBear on other platforms
             const data = getScriptData(local, 1, { code });
             remoteMetaData.info[local.props.uri] = {
               modified: local.props.lastModified,

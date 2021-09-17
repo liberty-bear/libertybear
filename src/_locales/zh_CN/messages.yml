@@ -259,7 +259,7 @@ labelAutoReloadCurrentTab:
   message: 从菜单开启或关闭脚本后自动刷新当前页面
 labelAutoReloadCurrentTabDisabled:
   description: >-
-    Tooltip in menu after Violentmonkey is switched off if auto-reload is
+    Tooltip in menu after Liberty Bear is switched off if auto-reload is
     disabled.
   message: 当前脚本在你刷新页面前将保持运行
 labelAutoUpdate:
@@ -544,24 +544,24 @@ menuNewScript:
   description: Menu item to create a new script.
   message: 创建新脚本
 menuScriptDisabled:
-  description: 'Menu item showing the status of Violentmonkey, when disabled.'
+  description: 'Menu item showing the status of Liberty Bear, when disabled.'
   message: 脚本已禁用
 menuScriptEnabled:
-  description: 'Menu item showing the status of Violentmonkey, when enabled.'
+  description: 'Menu item showing the status of Liberty Bear, when enabled.'
   message: 脚本已启用
 msgCheckingForUpdate:
   description: Message shown when a script is being checked for updates by version numbers.
   message: 正在检查更新...
 msgErrorFetchingResource:
   description: >-
-    Message shown when Violentmonkey fails fetching a resource/require/icon of
+    Message shown when Liberty Bear fails fetching a resource/require/icon of
     the script.
   message: 获取资源发生错误！
 msgErrorFetchingScript:
-  description: Message shown when Violentmonkey fails fetching a new version of the script.
+  description: Message shown when Liberty Bear fails fetching a new version of the script.
   message: 获取脚本发生错误！
 msgErrorFetchingUpdateInfo:
-  description: Message shown when Violentmonkey fails fetching version data of the script.
+  description: Message shown when Liberty Bear fails fetching version data of the script.
   message: 获取更新信息失败。
 msgErrorLoadingData:
   description: >-
@@ -729,5 +729,5 @@ valueLabelValueAll:
   description: Label for input of entire script value storage.
   message: 所有数据（JSON格式）
 visitWebsite:
-  description: Label for link to open Violentmonkey website.
+  description: Label for link to open Liberty Bear website.
   message: 访问网站

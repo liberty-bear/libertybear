@@ -71,18 +71,18 @@ bridge.addHandlers({
     }
   },
   Expose() {
-    const Violentmonkey = {};
-    defineProperty(Violentmonkey, 'version', {
+    const LibertyBear = {};
+    defineProperty(LibertyBear, 'version', {
       value: process.env.VM_VER,
     });
-    defineProperty(Violentmonkey, 'isInstalled', {
+    defineProperty(LibertyBear, 'isInstalled', {
       async value(name, namespace) {
         const script = await bridge.send('GetScript', { meta: { name, namespace } });
         return script && !script.config.removed ? script.meta.version : null;
       },
     });
-    defineProperty(window.external, 'Violentmonkey', {
-      value: Violentmonkey,
+    defineProperty(window.external, 'LibertyBear', {
+      value: LibertyBear,
     });
   },
 });

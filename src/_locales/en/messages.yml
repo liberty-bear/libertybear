@@ -14,7 +14,7 @@ buttonDisable:
   description: Button to disable a script.
   message: Disable
 buttonDownloadThemes:
-  description: Button in Violentmonkey settings for editor.
+  description: Button in Liberty Bear settings for editor.
   message: Download themes
 buttonEdit:
   description: Button to edit a script.
@@ -121,7 +121,7 @@ descEditorOptions:
   message: >-
     Custom options for CodeMirror and addons in JSON object like
     <code>{"indentUnit":2, "smartIndent":true}</code> however note that some of
-    them may not work in Violentmonkey. See <a
+    them may not work in Liberty Bear. See <a
     href="https://codemirror.net/doc/manual.html#config" target="_blank"
     rel="noopener noreferrer">full list</a>.
 editHelpDocumention:
@@ -174,16 +174,16 @@ extDescription:
   message: An open source userscript manager that supports a lot of browsers
 extName:
   description: Name of this extension.
-  message: Violentmonkey
+  message: Liberty Bear
 failureReasonBlacklisted:
   description: 'Shown for blacklisted URLs (in the extension icon tooltip, in the popup)'
-  message: Blacklisted in Violentmonkey's settings
+  message: Blacklisted in Liberty Bear's settings
 failureReasonNoninjectable:
   description: >-
     Shown for URLs that cannot be processed (same places as
     failureBlacklistedUrl)
   message: >-
-    Violentmonkey cannot run userscripts in this page
+    Liberty Bear cannot run userscripts in this page
 
     (common examples: browser UI, an extension, blocked via policies, a search
     engine site in Opera)
@@ -248,7 +248,7 @@ installOptionTrackTooltip:
   message: The source file tab should be kept open in Firefox 68 and newer.
 labelAbout:
   description: Label shown on top of the about page.
-  message: About Violentmonkey
+  message: About Liberty Bear
   touched: false
 labelAdvanced:
   description: Label for button to show advanced settings.
@@ -264,7 +264,7 @@ labelAutoReloadCurrentTab:
   message: Reload current tab after switching on/off a script from menu
 labelAutoReloadCurrentTabDisabled:
   description: >-
-    Tooltip in menu after Violentmonkey is switched off if auto-reload is
+    Tooltip in menu after Liberty Bear is switched off if auto-reload is
     disabled.
   message: Current scripts will keep running until you reload the tab
 labelAutoUpdate:
@@ -555,24 +555,24 @@ menuNewScript:
   description: Menu item to create a new script.
   message: Create a new script
 menuScriptDisabled:
-  description: 'Menu item showing the status of Violentmonkey, when disabled.'
+  description: 'Menu item showing the status of Liberty Bear, when disabled.'
   message: Scripts disabled
 menuScriptEnabled:
-  description: 'Menu item showing the status of Violentmonkey, when enabled.'
+  description: 'Menu item showing the status of Liberty Bear, when enabled.'
   message: Scripts enabled
 msgCheckingForUpdate:
   description: Message shown when a script is being checked for updates by version numbers.
   message: Checking for updates...
 msgErrorFetchingResource:
   description: >-
-    Message shown when Violentmonkey fails fetching a resource/require/icon of
+    Message shown when Liberty Bear fails fetching a resource/require/icon of
     the script.
   message: Error fetching resource!
 msgErrorFetchingScript:
-  description: Message shown when Violentmonkey fails fetching a new version of the script.
+  description: Message shown when Liberty Bear fails fetching a new version of the script.
   message: Error fetching script!
 msgErrorFetchingUpdateInfo:
-  description: Message shown when Violentmonkey fails fetching version data of the script.
+  description: Message shown when Liberty Bear fails fetching version data of the script.
   message: Failed fetching update information.
 msgErrorLoadingData:
   description: >-
@@ -740,5 +740,5 @@ valueLabelValueAll:
   description: Label for input of entire script value storage.
   message: All values (serialized as JSON)
 visitWebsite:
-  description: Label for link to open Violentmonkey website.
+  description: Label for link to open Liberty Bear website.
   message: Visit Website

@@ -26,7 +26,7 @@ const { lastIndexOf } = '';
 const { dispatchEvent, getElementById } = document;
 const { removeAttribute } = Element.prototype;
 
-const vmOwnFuncToString = () => '[Violentmonkey property]';
+const vmOwnFuncToString = () => '[LibertyBear property]';
 export const vmOwnFunc = (func, toString) => {
   defineProperty(func, 'toString', { value: toString || vmOwnFuncToString });
   return func;

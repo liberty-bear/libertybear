@@ -68,7 +68,7 @@ export function jsonDump(value) {
 }
 
 export function log(level, tags, ...args) {
-  const tagList = ['Violentmonkey'];
+  const tagList = ['LibertyBear'];
   if (tags) tagList::push(...tags);
   const prefix = tagList::map(tag => `[${tag}]`)::join('');
   logging[level](prefix, ...args);

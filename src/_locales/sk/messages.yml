@@ -120,7 +120,7 @@ descEditorOptions:
   message: >-
     Vlastné možnosti pre CodeMirror a doplnky v JSON objekte ako
     <code>{"indentUnit":2, "smartIndent":true}</code> avšak niektoré nemusia byť
-    funkčné vo Violentmonkey. Pozri <a
+    funkčné vo Liberty Bear. Pozri <a
     href="https://codemirror.net/doc/manual.html#config" target="_blank"
     rel="noopener noreferrer">celý zoznam</a>. Pre použitie vlastného motívu pre
     CodeMirror zadajte sem názov jeho súboru ako <code>"theme":3024-day"</code>
@@ -183,16 +183,16 @@ extDescription:
     prehliadačov
 extName:
   description: Name of this extension.
-  message: Violentmonkey
+  message: Liberty Bear
 failureReasonBlacklisted:
   description: 'Shown for blacklisted URLs (in the extension icon tooltip, in the popup)'
-  message: Na čiernej listine v nastaveniach Violentmonkey
+  message: Na čiernej listine v nastaveniach Liberty Bear
 failureReasonNoninjectable:
   description: >-
     Shown for URLs that cannot be processed (same places as
     failureBlacklistedUrl)
   message: >-
-    Violentmonkey nemôže spustiť skripty na tejto stránke
+    Liberty Bear nemôže spustiť skripty na tejto stránke
 
     (najčastejší prípad: rozhranie prehliadača alebo rozšírenia, blokované cez
     politiku, web vyhľadávača v Opere)
@@ -259,7 +259,7 @@ installOptionTrackTooltip:
   message: Karta so zdrojovým súborom by mala byť otvorená vo Firefoxe 68 a novšom.
 labelAbout:
   description: Label shown on top of the about page.
-  message: Informácie o Violentmonkey
+  message: Informácie o Liberty Bear
   touched: false
 labelAdvanced:
   description: Label for button to show advanced settings.
@@ -275,7 +275,7 @@ labelAutoReloadCurrentTab:
   message: Obnoviť aktuálny list po vypnutí alebo zapnutí skriptu z menu
 labelAutoReloadCurrentTabDisabled:
   description: >-
-    Tooltip in menu after Violentmonkey is switched off if auto-reload is
+    Tooltip in menu after Liberty Bear is switched off if auto-reload is
     disabled.
   message: 'Aktuálne skripty budú spustené, kým kartu znovu nenačítate'
 labelAutoUpdate:
@@ -563,24 +563,24 @@ menuNewScript:
   description: Menu item to create a new script.
   message: Vytvoriť nový skript
 menuScriptDisabled:
-  description: 'Menu item showing the status of Violentmonkey, when disabled.'
+  description: 'Menu item showing the status of Liberty Bear, when disabled.'
   message: Skripty sú zakázané
 menuScriptEnabled:
-  description: 'Menu item showing the status of Violentmonkey, when enabled.'
+  description: 'Menu item showing the status of Liberty Bear, when enabled.'
   message: Skripty sú povolené
 msgCheckingForUpdate:
   description: Message shown when a script is being checked for updates by version numbers.
   message: Kontrola aktualizácií...
 msgErrorFetchingResource:
   description: >-
-    Message shown when Violentmonkey fails fetching a resource/require/icon of
+    Message shown when Liberty Bear fails fetching a resource/require/icon of
     the script.
   message: Chyba pri načítaní zdroja!
 msgErrorFetchingScript:
-  description: Message shown when Violentmonkey fails fetching a new version of the script.
+  description: Message shown when Liberty Bear fails fetching a new version of the script.
   message: Chyba pri načítaní skriptu!
 msgErrorFetchingUpdateInfo:
-  description: Message shown when Violentmonkey fails fetching version data of the script.
+  description: Message shown when Liberty Bear fails fetching version data of the script.
   message: Načítanie informácií o aktualizácii skončilo chybou.
 msgErrorLoadingData:
   description: >-
@@ -717,7 +717,7 @@ searchUseRegex:
   message: Použiť regulárne výrazy
 sideMenuAbout:
   description: 'Side menu: About'
-  message: O Violentmonkey
+  message: O Liberty Bear
 sideMenuInstalled:
   description: 'Side menu: Installed scripts'
   message: Nainštalované skripty
@@ -750,5 +750,5 @@ valueLabelValueAll:
   description: Label for input of entire script value storage.
   message: Všetky hodnoty (serializované ako JSON)
 visitWebsite:
-  description: Label for link to open Violentmonkey website.
+  description: Label for link to open Liberty Bear website.
   message: Prejsť na stránku

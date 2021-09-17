@@ -6,7 +6,7 @@ const SCRIPT_TEMPLATE_EDITED = `${SCRIPT_TEMPLATE}Edited`;
 const INITIAL_TEMPLATE = `\
 // ==UserScript==
 // @name New Script
-// @namespace Violentmonkey Scripts
+// @namespace LibertyBear Scripts
 // @match {{url}}
 // @grant none
 // ==/UserScript==

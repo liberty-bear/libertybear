@@ -115,7 +115,7 @@ descEditorOptions:
   description: Description of editor options JSON section.
   message: >-
     CodeMirrorやアドオンのカスタムオプションとして、JSONオブジェクトを <code>{"indentUnit":2,
-    "smartIndent":true}</code> の様に指定します。 いくつかのオプションは Violentmonkey
+    "smartIndent":true}</code> の様に指定します。 いくつかのオプションは Liberty Bear
     では動作しない可能性があります。 完全なリストは <a
     href="https://codemirror.net/doc/manual.html#config" target="_blank"
     rel="noopener noreferrer">こちら</a> を参照してください。
@@ -169,7 +169,7 @@ extDescription:
   message: 多くのブラウザをサポートする、オープンソースの UserScript マネージャー
 extName:
   description: Name of this extension.
-  message: Violentmonkey
+  message: Liberty Bear
 failureReasonBlacklisted:
   description: 'Shown for blacklisted URLs (in the extension icon tooltip, in the popup)'
   message: 設定によりブロックリストに登録されています
@@ -178,7 +178,7 @@ failureReasonNoninjectable:
     Shown for URLs that cannot be processed (same places as
     failureBlacklistedUrl)
   message: |-
-    Violentmonkeyはこのページでユーザースクリプトを実行できません
+    Liberty Bearはこのページでユーザースクリプトを実行できません
     (一般的な例: ブラウザーUI、拡張機能、ポリシーによってブロックされている、検索サイト(Opera)など)
 filterAlphabeticalOrder:
   description: Label for option to sort scripts in alphabetical order.
@@ -241,7 +241,7 @@ installOptionTrackTooltip:
   message: Firefox 68 以降では、ソースファイルタブを開いたままにしておく必要があります。
 labelAbout:
   description: Label shown on top of the about page.
-  message: Violentmonkey について
+  message: Liberty Bear について
   touched: false
 labelAdvanced:
   description: Label for button to show advanced settings.
@@ -257,7 +257,7 @@ labelAutoReloadCurrentTab:
   message: メニューからスクリプトの有効/無効を切り替えたときに表示中のタブを更新する
 labelAutoReloadCurrentTabDisabled:
   description: >-
-    Tooltip in menu after Violentmonkey is switched off if auto-reload is
+    Tooltip in menu after Liberty Bear is switched off if auto-reload is
     disabled.
   message: 現在のスクリプトは、タブを再ロードするまで実行され続けます。
 labelAutoUpdate:
@@ -351,7 +351,7 @@ labelImportScriptData:
   message: スクリプトデータのインポート
 labelImportSettings:
   description: Label for option to import settings from zip file.
-  message: Violentmonkey の設定もインポートする
+  message: Liberty Bear の設定もインポートする
 labelInclude:
   description: Label of @include rules.
   message: 実行するページのURL (@include)
@@ -517,7 +517,7 @@ menuExcludeHint:
   message: |2-
      一般設定でこのオプションを有効にすると、現在のタブが自動再ロードされます。
     他のすべてのタブに変更を適用するには、手動で再ロードしてください。
-    柔軟性を高めるには、エディタの「設定」タブを使用します。 
+    柔軟性を高めるには、エディタの「設定」タブを使用します。
 menuFindScripts:
   description: Menu item to find scripts for a site.
   message: 表示しているサイト用のスクリプトを探す
@@ -542,24 +542,24 @@ menuNewScript:
   description: Menu item to create a new script.
   message: 新しいスクリプトを作成
 menuScriptDisabled:
-  description: 'Menu item showing the status of Violentmonkey, when disabled.'
+  description: 'Menu item showing the status of Liberty Bear, when disabled.'
   message: スクリプトは無効
 menuScriptEnabled:
-  description: 'Menu item showing the status of Violentmonkey, when enabled.'
+  description: 'Menu item showing the status of Liberty Bear, when enabled.'
   message: スクリプトは有効
 msgCheckingForUpdate:
   description: Message shown when a script is being checked for updates by version numbers.
   message: 更新を確認中…
 msgErrorFetchingResource:
   description: >-
-    Message shown when Violentmonkey fails fetching a resource/require/icon of
+    Message shown when Liberty Bear fails fetching a resource/require/icon of
     the script.
   message: リソースの取得中にエラーが発生しました
 msgErrorFetchingScript:
-  description: Message shown when Violentmonkey fails fetching a new version of the script.
+  description: Message shown when Liberty Bear fails fetching a new version of the script.
   message: スクリプトの取得中にエラーが発生しました!
 msgErrorFetchingUpdateInfo:
-  description: Message shown when Violentmonkey fails fetching version data of the script.
+  description: Message shown when Liberty Bear fails fetching version data of the script.
   message: 更新情報の取得に失敗しました。
 msgErrorLoadingData:
   description: >-
@@ -696,7 +696,7 @@ searchUseRegex:
   message: 正規表現を使用する
 sideMenuAbout:
   description: 'Side menu: About'
-  message: Violentmonkey について
+  message: Liberty Bear について
 sideMenuInstalled:
   description: 'Side menu: Installed scripts'
   message: インストール済み
@@ -727,5 +727,5 @@ valueLabelValueAll:
   description: Label for input of entire script value storage.
   message: すべての値 (JSONとしてシリアル化した)
 visitWebsite:
-  description: Label for link to open Violentmonkey website.
+  description: Label for link to open Liberty Bear website.
   message: ウェブサイトを開く

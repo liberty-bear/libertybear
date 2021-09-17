@@ -118,7 +118,7 @@ descEditorOptions:
   message: >-
     CodeMirror  ve JSON eklentileri için <code>{"indentUnit":2,
     "smartIndent":true}1</code> gibi özelleştirilmiş ayarlar, ancak bazıları
-    Violentmonkey'de çalışmayabililir. Tüm listeyi görmek için <a
+    Liberty Bear'de çalışmayabililir. Tüm listeyi görmek için <a
     href="https://codemirror.net/doc/manual.html#config" target="_blank"
     rel="noopener noreferrer">tıklayın</a>
 editHelpDocumention:
@@ -168,16 +168,16 @@ extDescription:
   message: Bir çok tarayıcı destekleyen açık kaynak userscript yöneticisi
 extName:
   description: Name of this extension.
-  message: Violentmonkey
+  message: Liberty Bear
 failureReasonBlacklisted:
   description: 'Shown for blacklisted URLs (in the extension icon tooltip, in the popup)'
-  message: Violentmonkey ayarlarında Kara listeye eklenmiş
+  message: Liberty Bear ayarlarında Kara listeye eklenmiş
 failureReasonNoninjectable:
   description: >-
     Shown for URLs that cannot be processed (same places as
     failureBlacklistedUrl)
   message: |-
-    Violentmonkey bu sayfada userscript çalıştıramıyor
+    Liberty Bear bu sayfada userscript çalıştıramıyor
     (örnek: tarayıcı arayüzü veya eklenti sayfası)
 filterAlphabeticalOrder:
   description: Label for option to sort scripts in alphabetical order.
@@ -240,7 +240,7 @@ installOptionTrackTooltip:
   message: Firefox 68 ve sonrası için kaynak sekmesi açık tutulmalıdır.
 labelAbout:
   description: Label shown on top of the about page.
-  message: Violentmonkey hakkında
+  message: Liberty Bear hakkında
   touched: false
 labelAdvanced:
   description: Label for button to show advanced settings.
@@ -258,7 +258,7 @@ labelAutoReloadCurrentTab:
     yeniden yükle
 labelAutoReloadCurrentTabDisabled:
   description: >-
-    Tooltip in menu after Violentmonkey is switched off if auto-reload is
+    Tooltip in menu after Liberty Bear is switched off if auto-reload is
     disabled.
   message: ''
 labelAutoUpdate:
@@ -542,24 +542,24 @@ menuNewScript:
   description: Menu item to create a new script.
   message: Yeni script oluştur
 menuScriptDisabled:
-  description: 'Menu item showing the status of Violentmonkey, when disabled.'
+  description: 'Menu item showing the status of Liberty Bear, when disabled.'
   message: Scriptler deaktif edildi
 menuScriptEnabled:
-  description: 'Menu item showing the status of Violentmonkey, when enabled.'
+  description: 'Menu item showing the status of Liberty Bear, when enabled.'
   message: Scriptler aktif edildi
 msgCheckingForUpdate:
   description: Message shown when a script is being checked for updates by version numbers.
   message: Güncellemeler denetleniyor...
 msgErrorFetchingResource:
   description: >-
-    Message shown when Violentmonkey fails fetching a resource/require/icon of
+    Message shown when Liberty Bear fails fetching a resource/require/icon of
     the script.
   message: Kaynak güncelleme hatası!
 msgErrorFetchingScript:
-  description: Message shown when Violentmonkey fails fetching a new version of the script.
+  description: Message shown when Liberty Bear fails fetching a new version of the script.
   message: Script güncelleme hatası!
 msgErrorFetchingUpdateInfo:
-  description: Message shown when Violentmonkey fails fetching version data of the script.
+  description: Message shown when Liberty Bear fails fetching version data of the script.
   message: Bilgileri güncellerken hata oluştu.
 msgErrorLoadingData:
   description: >-
@@ -729,5 +729,5 @@ valueLabelValueAll:
   description: Label for input of entire script value storage.
   message: ''
 visitWebsite:
-  description: Label for link to open Violentmonkey website.
+  description: Label for link to open Liberty Bear website.
   message: Siteyi ziyaret et

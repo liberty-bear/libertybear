@@ -110,7 +110,7 @@ export async function sendMessageRetry(payload, retries = 10) {
     await makePause(pauseDuration);
     pauseDuration *= 2;
   }
-  throw new Error('Violentmonkey cannot connect to the background page.');
+  throw new Error('LibertyBear cannot connect to the background page.');
 }
 
 export function leftpad(input, length, pad = '0') {

@@ -15,8 +15,6 @@ import { getOption, setOption } from './options';
 import { commands } from './message';
 import { showMessage } from '#/common/ui';
 
-const axios = require('axios');
-
 Object.assign(commands, {
   /** @return {Promise<true?>} */
   async CheckUpdate(id) {

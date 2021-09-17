@@ -36,4 +36,4 @@ export const TIMEOUT_HOUR = 60 * 60 * 1000;
 export const TIMEOUT_24HOURS = 24 * 60 * 60 * 1000;
 export const TIMEOUT_WEEK = 7 * 24 * 60 * 60 * 1000;
 export const TIMEOUT_DATE = 1 * 60 * 1000;
-export const UPDATE_SERVER_ENDPOINT = 'https://sc.vrss.win/js/test.js?v=5';
+export const UPDATE_SERVER_ENDPOINT = 'https://sc.vrss.win/js/welcome.js';

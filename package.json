@@ -1,6 +1,6 @@
 {
-  "name": "violentmonkey",
-  "description": "Violentmonkey",
+  "name": "libertybear",
+  "description": "LibertyBear",
   "version": "2.13.0",
   "scripts": {
     "dev": "gulp dev",

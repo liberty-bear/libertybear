@@ -555,7 +555,7 @@ async function maybeInstallUserJs(tabId, url) {
   }
 }
 
-// In Firefox with production code of Violentmonkey, scripts can be injected before `tabs.onUpdated` is fired.
+// In Firefox with production code of LibertyBear, scripts can be injected before `tabs.onUpdated` is fired.
 // Ref: https://github.com/violentmonkey/violentmonkey/issues/1255
 
 browser.tabs.onRemoved.addListener((tabId) => {

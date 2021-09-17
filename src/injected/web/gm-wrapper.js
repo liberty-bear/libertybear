@@ -113,7 +113,7 @@ function makeGmInfo(script, resources) {
     uuid: script.props.uuid,
     scriptMetaStr: script.metaStr,
     scriptWillUpdate: !!script.config.shouldUpdate,
-    scriptHandler: 'Violentmonkey',
+    scriptHandler: 'LibertyBear',
     version: process.env.VM_VER,
     injectInto: bridge.mode,
     platform: assign({}, bridge.ua),

@@ -22,5 +22,5 @@ If this is a bug report, please also provide logs in the console.
 ### Environment
 - Browser:
 - Browser version:
-- Violentmonkey version:
+- LibertyBear version:
 - OS:

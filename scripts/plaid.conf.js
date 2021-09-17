@@ -16,7 +16,7 @@ exports.pages = [
     entry: `./src/${name}`,
     html: options => ({
       ...options,
-      title: 'Violentmonkey',
+      title: 'LibertyBear',
       injectTo: item => (item.attributes.src || '').endsWith('/index.js') ? 'body' : 'head',
     }),
   },
