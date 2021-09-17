@@ -26,8 +26,8 @@ async function main() {
     }
   }
   // const fileName = path.basename(result.downloadedFiles[0]);
-  const fileName = `violentmonkey-${version}-an+fx.xpi`;
-  const url = `https://github.com/violentmonkey/violentmonkey/releases/download/v${rawVersion}/${fileName}`;
+  const fileName = `libertybear-${version}-an+fx.xpi`;
+  const url = `https://github.com/liberty-bear/libertybear/releases/download/v${rawVersion}/${fileName}`;
   const updates = await buildUpdatesList(version, url);
   await fs.writeFile(path.join(process.env.TEMP_DIR, 'updates/updates.json'), JSON.stringify(updates, null, 2), 'utf8');
 }

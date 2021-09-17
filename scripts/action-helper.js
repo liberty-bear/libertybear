@@ -11,7 +11,7 @@ const envs = {
     `v${version}`,
   ].filter(Boolean).join(' '),
   RELEASE_PREFIX: [
-    'Violentmonkey',
+    'LibertyBear',
     beta && 'beta',
   ].filter(Boolean).join('-'),
   PRERELEASE: !!beta,
@@ -24,7 +24,7 @@ envs.ASSET_SELF_HOSTED_ZIP = `${envs.RELEASE_PREFIX}-webext-ffself-v${envs.VERSI
 
 // TODO generate release notes by conventional commit messages and add installation instructions
 envs.RELEASE_NOTE = beta ? `\
-**This is a beta release of Violentmonkey, use it at your own risk.**
+**This is a beta release of LibertyBear, use it at your own risk.**
 ` : `\
 See <https://violentmonkey.github.io/> for more details.
 `;
